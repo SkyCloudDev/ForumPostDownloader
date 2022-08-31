@@ -1,4 +1,4 @@
-# AttachmentScript
+# Forum Post Downloader
 This script allows for downloading of posts and threads from the SimpCity forum
 
 # Installation
