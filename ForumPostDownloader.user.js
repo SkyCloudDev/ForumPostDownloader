@@ -2,7 +2,7 @@
 // @name Forum Post Downloader
 // @namespace https://github.com/SkyCloudDev
 // @author SkyCloudDev
-// @description Download galleries from posts
+// @description Downloads images and videos from posts
 // @version 2.0
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/ForumPostDownloader.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/ForumPostDownloader.user.js
