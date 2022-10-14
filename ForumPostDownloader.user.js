@@ -3,7 +3,7 @@
 // @namespace https://github.com/SkyCloudDev
 // @author SkyCloudDev
 // @description Downloads images and videos from posts
-// @version 2.0
+// @version 2.1
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/ForumPostDownloader.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/ForumPostDownloader.user.js
 // @icon https://simp4.jpg.church/simpcityIcon192.png
@@ -21,8 +21,6 @@
 // @connect cyberdrop.nl
 // @connect cyberdrop.to
 // @connect saint.to
-// @connect zz.fo
-// @connect zz.ht
 // @connect sendvid.com
 // @connect i.redd.it
 // @connect i.ibb.co
@@ -33,6 +31,7 @@
 // @connect imgbox.com
 // @connect pixhost.to
 // @connect pixl.is
+// @connect img.kiwi
 // @connect pixxxels.cc
 // @connect postimg.cc
 // @connect imagevenue.com
@@ -108,6 +107,7 @@ const REGEX_EMOJI = /[\u{1f300}-\u{1f5ff}\u{1f900}-\u{1f9ff}\u{1f600}-\u{1f64f}\
 const REGEX_WINDOWS = /^(con|prn|aux|nul|com[0-9]|lpt[0-9])$|([<>:"\/\\|?*])|(\.|\s)$/gi;
 
 var Videos = ['.mpeg', '.avchd', '.webm', '.mpv', '.swf', '.avi', '.m4p', '.wmv', '.mp2', '.m4v', '.qt', '.mpe', '.mp4', '.flv', '.mov', '.mpg', '.ogg', '.MPEG', '.AVCHD', '.WEBM', '.MPV', '.SWF', '.AVI', '.M4P', '.WMV', '.MP2', '.M4V', '.QT', '.MPE', '.MP4', '.FLV', '.MOV', '.MPG', '.OGG'];
+var Archives = ['.zip', '.rar', '.7z', '.ZIP', '.RAR', '.7Z']
 var Images = ['.jpg', '.jpeg', '.png', '.gif', '.gif', '.webp', '.jpe', '.svg', '.tif', '.tiff', '.jif', '.JPG', '.JPEG', '.PNG', '.GIF', '.GIF', '.WEBP', '.JPE', '.SVG', '.TIF', '.TIFF', '.JIF'];
 
 const getThreadTitle = () => {
@@ -279,6 +279,7 @@ async function gatherExternalLinks(externalLink, type) {
 
                     var requestResponse = response.response;
                     bunkrMediaInfos = JSON.parse(requestResponse.getElementById('__NEXT_DATA__').firstChild.data);
+                    console.log(bunkrMediaInfos);
                     bunkrServer = bunkrMediaInfos.props.pageProps.file.mediafiles;
                     bunkrFileName = bunkrMediaInfos.props.pageProps.file.name;
                     linkElement = bunkrServer.concat("/", bunkrFileName);
@@ -346,7 +347,7 @@ async function download(post, fileName, altFileName) {
                             var element = extUrl[index];
 
                             if(Videos.some(s => element.includes(s))) {
-                                element = element.replace('//cdn', '//media-files');
+                                element = element.replace(/cdn\d.bunkr.is/i, 'stream.bunkr.is/v/');
                             }
 
                             urls.push(element);
@@ -469,10 +470,10 @@ async function download(post, fileName, altFileName) {
             console.log("Downloading: " + url)
             var original_url = url;
             GM_xmlhttpRequest({
-                method: isHLS ? 'POST' : 'GET',
-                url: isHLS ? 'http://127.0.0.1:5000/json' : url,
-                data: isHLS ? JSON.stringify({ 'url': url }) : null,
-                headers: {"Referer": url, "user-agent": userAgent},  //headerHelper(refUrl, isHLS, needsReferrer),
+                method: 'GET',
+                url: url,
+                data: null,
+                headers: {"Referer": url, "user-agent": userAgent},
                 responseType: 'blob',
                 onprogress: function (evt) {
                     var percentComplete = (evt.loaded / evt.total) * 100;
@@ -482,6 +483,11 @@ async function download(post, fileName, altFileName) {
                     try {
                         var data = response.response;
                         var file_name = response.responseHeaders.match(/^content-disposition.+(?:filename=)(.+)$/mi)[1].replace(/\"/g, '');
+                        console.log(file_name);
+                        if (file_name == ", attachment; filename="){
+                            file_name = new URL(response.finalUrl).pathname.split('/').pop();
+                            console.log("better filename: " + file_name);
+                        }
                     }
                     catch (err) {
                         file_name = new URL(response.finalUrl).pathname.split('/').pop();
@@ -639,6 +645,10 @@ function getPostLinks(post) {
                     link = link.replace('.th.', '.');
                     link = link.replace(".md.", ".");
                 }
+                if (link.includes('img.kiwi')) {
+                    link = link.replace('.th.', '.');
+                    link = link.replace(".md.", ".");
+                }
 
                 if (link.includes('pixhost.to')) {
                     link = link.replace('//t', '//img');
@@ -665,6 +675,8 @@ function getPostLinks(post) {
                             if (!link.includes('stream.')) {
                                 if(Videos.some(s => link.includes(s))) {
                                     console.log("original link: " + link);
+                                    link = link.replace(/cdn\d.bunkr.is/i, 'stream.bunkr.is/v/');
+                                } else if(Archives.some((s => link.includes(s)))){
                                     link = link.replace('//cdn', '//media-files');
                                 }
                             }
