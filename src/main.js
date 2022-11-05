@@ -1205,8 +1205,13 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
               basename = customFilename;
             }
 
-            const folder = folderName ? `./${folderName}` : './';
-            const fn = totalDownloadable > 1 ? `${postSettings.flatten ? '.' : folder}/${basename}` : basename;
+            const folder = folderName || '';
+
+            let fn = basename;
+
+            if (folder && folder.trim() !== '') {
+              fn = totalDownloadable > 1 ? `${postSettings.flatten ? '' : folder}/${basename}` : basename;
+            }
 
             log.separator(postId);
             log.post.info(postId, `::Completed::: ${url}`, postNumber);
@@ -1245,7 +1250,7 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
     if (postSettings.generateLog) {
       log.post.info(postId, `::Generating log file::`, postNumber);
       zip.file(
-        './generated/log.txt',
+        'generated/log.txt',
         logs
           .filter(l => l.postId === postId)
           .map(l => l.message)
@@ -1256,7 +1261,7 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
     if (postSettings.generateLinks) {
       log.post.info(postId, `::Generating links::`, postNumber);
       zip.file(
-        './generated/links.txt',
+        'generated/links.txt',
         resolved
           .filter(r => r.url)
           .map(r => r.url)
