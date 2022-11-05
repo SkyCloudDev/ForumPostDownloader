@@ -5,7 +5,7 @@
 // @author SkyCloudDev
 // @author x111000111
 // @description Downloads images and videos from posts
-// @version 2.2.4
+// @version 2.2.5
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.js
 // @icon https://simp4.jpg.church/simpcityIcon192.png
@@ -2409,8 +2409,13 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
               basename = customFilename;
             }
 
-            const folder = folderName ? `./${folderName}` : './';
-            const fn = totalDownloadable > 1 ? `${postSettings.flatten ? '.' : folder}/${basename}` : basename;
+            const folder = folderName || '';
+
+            let fn = basename;
+
+            if (folder && folder.trim() !== '') {
+              fn = totalDownloadable > 1 ? `${postSettings.flatten ? '' : folder}/${basename}` : basename;
+            }
 
             log.separator(postId);
             log.post.info(postId, `::Completed::: ${url}`, postNumber);
@@ -2449,7 +2454,7 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
     if (postSettings.generateLog) {
       log.post.info(postId, `::Generating log file::`, postNumber);
       zip.file(
-        './generated/log.txt',
+        'generated/log.txt',
         logs
           .filter(l => l.postId === postId)
           .map(l => l.message)
@@ -2460,7 +2465,7 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
     if (postSettings.generateLinks) {
       log.post.info(postId, `::Generating links::`, postNumber);
       zip.file(
-        './generated/links.txt',
+        'generated/links.txt',
         resolved
           .filter(r => r.url)
           .map(r => r.url)
