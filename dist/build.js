@@ -5,7 +5,7 @@
 // @author SkyCloudDev
 // @author x111000111
 // @description Downloads images and videos from posts
-// @version 2.2.2
+// @version 2.2.4
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.js
 // @icon https://simp4.jpg.church/simpcityIcon192.png
@@ -2435,7 +2435,13 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
   }
 
   if (totalDownloadable > 0) {
-    const filename = customFilename || `#${postNumber}.zip`;
+    let title = threadTitle.replace(/[\\\/]/g, settings.naming.invalidCharSubstitute);
+
+    // https://stackoverflow.com/a/9851769
+    // Will be deprecated in the future according to FF.
+    const isFF = typeof InstallTrigger !== 'undefined';
+
+    const filename = customFilename || (isFF ? `${title} #${postNumber}.zip` : `#${postNumber}.zip`);
 
     log.separator(postId);
     log.post.info(postId, `::Preparing zip::`, postNumber);
@@ -2465,18 +2471,24 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
     let blob = await zip.generateAsync({ type: 'blob' });
     const url = URL.createObjectURL(blob);
 
-    GM_download({
-      url,
-      name: `${threadTitle.replace(/[\\\/]/g, settings.naming.invalidCharSubstitute)}/${filename}`,
-      onload: () => {
-        URL.revokeObjectURL(url);
-        blob = null;
-      },
-      onerror: response => {
-        console.log('Error downloading the requested post. There may be more details below.');
-        console.log(response);
-      },
-    });
+    if (isFF) {
+      // Firefox won't save in a custom dir.
+      saveAs(blob, filename);
+    } else {
+      GM_download({
+        url,
+        name: `${title}/${filename}`,
+        onload: () => {
+          URL.revokeObjectURL(url);
+          blob = null;
+        },
+        onerror: response => {
+          console.log('Error downloading the requested post. There may be more details below.');
+          console.log(response);
+        },
+      });
+    }
+
     setProcessing(false, postId);
   } else {
     setProcessing(false, postId);
