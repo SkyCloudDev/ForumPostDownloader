@@ -53,6 +53,7 @@ const hosts = [
       /!!https:(\/|\\\/){2}s9e.github.io(\/|\\\/)iframe(\/|\\\/)2(\/|\\\/)imgur.*?(?="|&quot;)|(?<=")https:\/\/(www.)?imgur.(com|io).*?(?=")/,
     ],
   ],
+  ['imgur.com:image', [/\w+\.imgur.(com|io)/]],
   ['reddit.com:image', [/(\w+)?.redd.it/]],
   ['instagram.com:Media', [/!!https:(\/|\\\/){2}s9e.github.io(\/|\\\/)iframe(\/|\\\/)2(\/|\\\/)instagram.*?(?="|&quot;)/]],
   ['instagram.com:Profile', [/!!instagram.com\/[~an@_.-]+|((instagram|insta):(\s+)?)@?[a-zA-Z0-9_.-]+/]],
@@ -728,7 +729,7 @@ const resolvers = [
     },
   ],
   [
-    [/imgur\.min\.|imgur.(com|io)/],
+    [/imgur\.min\.|imgur.(com|io)/, /:!\w+\.imgur.(com|io)/],
     async (url, http) => {
       let id;
       let type = 'single';
@@ -773,6 +774,7 @@ const resolvers = [
       }
     },
   ],
+  [[/\w+\.imgur.(com|io)/], url => url],
   [[/twimg.com\//], url => url.replace(':large', '').replace('&amp;', '&')],
   [
     [/(disk\.)?yandex\.[a-z]+/],
@@ -935,7 +937,7 @@ const setProcessing = (isProcessing, postId) => {
 const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, getSettingsCB, statusUI, callbacks = {}) => {
   const { postId, postNumber, pageNumber } = parsedPost;
 
-  const settings = getSettingsCB();
+  const postSettings = getSettingsCB();
 
   const enabledHosts = enabledHostsCB(parsedHosts);
 
@@ -1082,7 +1084,7 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
 
   const threadTitle = parsers.thread.parseTitle();
 
-  let customFilename = settings.output.find(o => o.postId === postId)?.value;
+  let customFilename = postSettings.output.find(o => o.postId === postId)?.value;
 
   if (customFilename) {
     customFilename = customFilename.replace(/:title:/g, threadTitle);
@@ -1090,7 +1092,7 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
     customFilename = customFilename.replace(/:id:/g, postId);
   }
 
-  if (settings.skipDuplicates) {
+  if (postSettings.skipDuplicates) {
     const unique = [];
     for (const r of resolved.filter(r => r.url).sort((a, b) => (a.host.type !== 'folder' || b.host.type !== 'folder' ? -1 : 1))) {
       const filename = h.basename(r.url);
@@ -1109,9 +1111,7 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
     }
   }
 
-  const rootFolderName = `page-${pageNumber}`;
-
-  if (!settings.skipDownload) {
+  if (!postSettings.skipDownload) {
     for (const { url, host, folderName } of resolved.filter(r => r.url)) {
       h.ui.setElProps(statusLabel, { fontWeight: 'normal' });
       const ellipsedUrl = h.limit(url, 80);
@@ -1202,7 +1202,7 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
             }
 
             const folder = folderName ? `./${folderName}` : './';
-            const fn = totalDownloadable > 1 ? `${settings.flatten ? '.' : folder}/${basename}` : basename;
+            const fn = totalDownloadable > 1 ? `${postSettings.flatten ? '.' : folder}/${basename}` : basename;
 
             log.separator(postId);
             log.post.info(postId, `::Completed::: ${url}`, postNumber);
@@ -1232,7 +1232,7 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
     log.separator(postId);
     log.post.info(postId, `::Preparing zip::`, postNumber);
 
-    if (settings.generateLog) {
+    if (postSettings.generateLog) {
       log.post.info(postId, `::Generating log file::`, postNumber);
       zip.file(
         './generated/log.txt',
@@ -1243,7 +1243,7 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
       );
     }
 
-    if (settings.generateLinks) {
+    if (postSettings.generateLinks) {
       log.post.info(postId, `::Generating links::`, postNumber);
       zip.file(
         './generated/links.txt',
@@ -1259,13 +1259,14 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
 
     GM_download({
       url,
-      name: `${threadTitle}/${rootFolderName}/${filename}`,
+      name: `${threadTitle.replace(/[\\\/]/g, settings.naming.invalidCharSubstitute)}/${filename}`,
       onload: () => {
         URL.revokeObjectURL(url);
         blob = null;
       },
       onerror: response => {
-        console.log('Error response: <' + response['error'] + '> for requested URL: ' + url);
+        console.log('Error downloading the requested post. There may be more details below.');
+        console.log(response);
       },
     });
     setProcessing(false, postId);
@@ -1278,8 +1279,8 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
   h.hide(totalPB);
 
   if (totalDownloadable > 0) {
-    // For logging in console.
-    if (settings.skipDownload) {
+    // For logging in console since post logs are already written.
+    if (postSettings.skipDownload) {
       log.post.info(postId, `::Download completed::`, postNumber);
     } else {
       log.post.info(postId, `::Links generation completed::`, postNumber);
