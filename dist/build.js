@@ -6,8 +6,8 @@
 // @author x111000111
 // @description Downloads images and videos from posts
 // @version 2.2.0
-// @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/ForumPostDownloader.user.js
-// @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/ForumPostDownloader.user.js
+// @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.js
+// @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.js
 // @icon https://simp4.jpg.church/simpcityIcon192.png
 // @license WTFPL; http://www.wtfpl.net/txt/copying/
 // @match https://simpcity.su/threads/*
@@ -163,7 +163,7 @@ const settings = {
   },
   hosts: {
     goFile: {
-      token: 'QlyuGawa8ef9G2nKJXfGRxK5sMILjtou',
+      token: '',
     },
   },
   extensions: {
@@ -1272,9 +1272,7 @@ const hosts = [
  * @type {((RegExp[]|(function(*): *))[]|(RegExp[]|(function(*, *): Promise<{dom: *, source: *, folderName: *, resolved}>))[]|(RegExp[]|(function(*, *): Promise<string>))[]|(RegExp[]|(function(*, *): Promise<{dom: *, source: *, folderName: *, resolved}>))[]|(RegExp[]|(function(*): *))[])[]}
  */
 const resolvers = [
-  // jpg.church direct image
   [[/jpg.church\//i, /:!jpg.church\/a\//i], url => url.replace('.th.', '.').replace('.md.', '.')],
-  // jpg.church album
   [
     [/jpg.church\/a\//i],
     async (url, http) => {
@@ -1307,8 +1305,6 @@ const resolvers = [
       };
     },
   ],
-
-  // ibb.co direct image
   [
     [/([a-z](\d+)?\.)?ibb.co\/[a-zA-Z0-9-_.]+/, /:!([a-z](\d+)?\.)?ibb.co\/[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+/],
     async (url, http) => {
@@ -1330,8 +1326,6 @@ const resolvers = [
       };
     },
   ],
-
-  // pixl.is direct image
   [[/([a-z](\d+)\.)pixl.(is|to)\/((img|image)\/)?/, /:!pixl.(is|to)\/album\//], url => url.replace('.th.', '.').replace('.md.', '.')],
   [
     [/pixl.(is|to)\/album\//],
@@ -1362,8 +1356,6 @@ const resolvers = [
       };
     },
   ],
-
-  // pixhost.to direct image
   [[/t(\d+)?\.pixhost.to\//, /:!pixhost.to\/gallery\//], url => url.replace(/t(\d+)\./gi, 'img$1.').replace(/thumbs\//i, 'images/')],
   [
     [/pixhost.to\/gallery\//],
@@ -1388,8 +1380,6 @@ const resolvers = [
       };
     },
   ],
-
-  // bunkr.is direct link
   [
     [/(stream|cdn(\d+)?|i(\d+)?).bunkr.is\/(v\/)?/, /:!bunkr.is\/a\//],
     async (url, http) => {
@@ -1434,7 +1424,6 @@ const resolvers = [
       }
     },
   ],
-  // bunkr.is album
   [
     [/bunkr.is\/a\//],
     async (url, http) => {
@@ -1456,7 +1445,6 @@ const resolvers = [
       };
     },
   ],
-  // pixeldrain.com direct link
   [
     [/pixeldrain.com\/[ul]/],
     url => {
@@ -1466,7 +1454,6 @@ const resolvers = [
       return resolved;
     },
   ],
-  // pixeldrain.com direct link
   [
     [/anonfiles.com\//],
     async (url, http) => {
@@ -1474,7 +1461,6 @@ const resolvers = [
       return dom.querySelector('#download-url').getAttribute('href');
     },
   ],
-  // pornhub.com video
   [
     [/([~an@]+\.)?pornhub.com\/view_video/],
     async (url, http) => {
@@ -1555,7 +1541,6 @@ const resolvers = [
       return parsed;
     },
   ],
-  // GoFile album
   [
     [/gofile.io\/d/],
     async (url, http, spoilers) => {
@@ -1656,7 +1641,6 @@ const resolvers = [
       };
     },
   ],
-  // Erome album
   [
     [/erome.com\/a\//],
     async (url, http) => {
@@ -1678,7 +1662,6 @@ const resolvers = [
       };
     },
   ],
-  // Cyberfile direct file
   [
     [/cyberfile.is\//, /:!cyberfile.is\/folder\//],
     async (url, http) => {
@@ -1695,7 +1678,6 @@ const resolvers = [
       return h.re.matchAll(/(?<=openUrl\(').*?(?=')/gi, response)[0]?.replace(/\\\//gi, '/');
     },
   ],
-  // Cyberfile folder
   [
     [/cyberfile.is\/folder\//],
     async (url, http) => {
@@ -1748,9 +1730,7 @@ const resolvers = [
       };
     },
   ],
-  // saint.to video
   [[/([~an@]+\.)?saint.to\/videos/], async url => url],
-  // saint.to video
   [
     [/saint.to\/embed/],
     async (url, http) => {
@@ -1758,7 +1738,6 @@ const resolvers = [
       return dom.querySelector('source')?.getAttribute('src');
     },
   ],
-  // RedGifs video
   [
     [/redgifs.com(\/|\\\/)ifr/],
     async (url, http) => {
@@ -1767,9 +1746,7 @@ const resolvers = [
       return dom.querySelector('meta[property="og:video"]')?.content.replace('&amp;').trim();
     },
   ],
-  // Cyberdrop direct file
   [[/fs-\d+.cyberdrop.(me|to|cc|nl)\//, /:!cyberdrop.(me|to|cc|nl)\/a\//], url => url.replace(/(fs|img)-\d+/i, 'fs-01')],
-  // Cyberdrop album
   [
     [/cyberdrop.me\/a\//],
     async (url, http) => {
