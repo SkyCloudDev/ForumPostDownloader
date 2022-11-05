@@ -144,7 +144,7 @@ const ui = {
                   class="iconic-label"
                   style="font-weight: bold; margin-left: -7px"
                 >
-                    ${label}
+                    <span id="${id}-label">${label}</span>
                 </span>
             </label>
           </div>
@@ -283,7 +283,7 @@ const ui = {
          * @returns {string}
          */
         createToggleAllCheckbox: postId => {
-          return ui.forms.createCheckbox(`settings-toggle-all-hosts-${postId}`, '&nbsp;', true);
+          return ui.forms.createCheckbox(`settings-toggle-all-hosts-${postId}`, settings.ui.checkboxes.toggleAllCheckboxLabel, true);
         },
         /**
          * @param postId
@@ -365,6 +365,9 @@ const ui = {
             ui.forms.config.post.createSkipDownloadCheckbox(postId, settings.skipDownload),
             ui.forms.config.post.createHostCheckboxes(postId, filterLabel, hostsHtml, parsedHosts.length > 1),
             ui.forms.config.post.createNoSelectionWarningLabel(),
+            ui.forms.createRow(
+              '<a href="#download-page" style="color: dodgerblue; font-weight: bold"><i class="fa fa-arrow-up"></i> Show Download Page Button</a>',
+            ),
           ];
 
           const configForm = ui.forms.config.post.createForm(postId, color, formHtml.join(''));

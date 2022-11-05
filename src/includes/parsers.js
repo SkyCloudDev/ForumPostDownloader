@@ -10,8 +10,9 @@ const parsers = {
       return !settings.naming.allowEmojis ? parsed.replace(emojisPattern, settings.naming.invalidCharSubstitute).trim() : parsed.trim();
     },
     /**
+     *
      * @param post
-     * @returns {{post, spoilers: *, footer: HTMLElement, contentContainer: Element, postId: string, postNumber: string, content: (*|string|string|string)}}
+     * @returns {{pageNumber: string, post, spoilers: *, footer: HTMLElement, contentContainer: Element, textContent: (*|string|string), postId: string, postNumber: string, content: (*|string|string|string)}}
      */
     parsePost: post => {
       const messageContent = post.parentNode.parentNode.querySelector('.message-content > .message-userContent > .message-body');
@@ -61,10 +62,15 @@ const parsers = {
       const postContent = messageContentClone.innerHTML;
       const postTextContent = messageContentClone.innerText;
 
+      const matches = /(?<=\/page-)\d+/is.exec(document.location.pathname);
+
+      const pageNumber = matches && matches.length ? Number(matches[0]) : 1;
+
       return {
         post,
         postId,
         postNumber,
+        pageNumber,
         spoilers,
         footer,
         content: postContent,

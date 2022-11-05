@@ -8,6 +8,11 @@ const settings = {
       token: '',
     },
   },
+  ui: {
+    checkboxes: {
+      toggleAllCheckboxLabel: '',
+    },
+  },
   extensions: {
     image: ['.jpg', '.jpeg', '.png', '.gif', '.gif', '.webp', '.jpe', '.svg', '.tif', '.tiff', '.jif'],
     video: [

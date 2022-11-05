@@ -166,6 +166,11 @@ const settings = {
       token: '',
     },
   },
+  ui: {
+    checkboxes: {
+      toggleAllCheckboxLabel: '',
+    },
+  },
   extensions: {
     image: ['.jpg', '.jpeg', '.png', '.gif', '.gif', '.webp', '.jpe', '.svg', '.tif', '.tiff', '.jif'],
     video: [
@@ -475,8 +480,9 @@ const parsers = {
       return !settings.naming.allowEmojis ? parsed.replace(emojisPattern, settings.naming.invalidCharSubstitute).trim() : parsed.trim();
     },
     /**
+     *
      * @param post
-     * @returns {{post, spoilers: *, footer: HTMLElement, contentContainer: Element, postId: string, postNumber: string, content: (*|string|string|string)}}
+     * @returns {{pageNumber: string, post, spoilers: *, footer: HTMLElement, contentContainer: Element, textContent: (*|string|string), postId: string, postNumber: string, content: (*|string|string|string)}}
      */
     parsePost: post => {
       const messageContent = post.parentNode.parentNode.querySelector('.message-content > .message-userContent > .message-body');
@@ -526,10 +532,15 @@ const parsers = {
       const postContent = messageContentClone.innerHTML;
       const postTextContent = messageContentClone.innerText;
 
+      const matches = /(?<=\/page-)\d+/is.exec(document.location.pathname);
+
+      const pageNumber = matches && matches.length ? Number(matches[0]) : 1;
+
       return {
         post,
         postId,
         postNumber,
+        pageNumber,
         spoilers,
         footer,
         content: postContent,
@@ -799,7 +810,7 @@ const ui = {
                   class="iconic-label"
                   style="font-weight: bold; margin-left: -7px"
                 >
-                    ${label}
+                    <span id="${id}-label">${label}</span>
                 </span>
             </label>
           </div>
@@ -938,7 +949,7 @@ const ui = {
          * @returns {string}
          */
         createToggleAllCheckbox: postId => {
-          return ui.forms.createCheckbox(`settings-toggle-all-hosts-${postId}`, '&nbsp;', true);
+          return ui.forms.createCheckbox(`settings-toggle-all-hosts-${postId}`, settings.ui.checkboxes.toggleAllCheckboxLabel, true);
         },
         /**
          * @param postId
@@ -1020,6 +1031,9 @@ const ui = {
             ui.forms.config.post.createSkipDownloadCheckbox(postId, settings.skipDownload),
             ui.forms.config.post.createHostCheckboxes(postId, filterLabel, hostsHtml, parsedHosts.length > 1),
             ui.forms.config.post.createNoSelectionWarningLabel(),
+            ui.forms.createRow(
+              '<a href="#download-page" style="color: dodgerblue; font-weight: bold"><i class="fa fa-arrow-up"></i> Show Download Page Button</a>',
+            ),
           ];
 
           const configForm = ui.forms.config.post.createForm(postId, color, formHtml.join(''));
@@ -1188,8 +1202,8 @@ const init = {
     document.head.append(customStyles);
   },
 };
-// Indicates whether the script is busy or not.
-let isProcessing = false;
+// Holds the posts that are processing downloads.
+let processing = [];
 
 /**
  * An array of arrays defining how to match hosts inside the posts.
@@ -2104,8 +2118,19 @@ const resolvers = [
   [[/(\w+)?.redd.it/], url => url],
 ];
 
-const downloadPost = async (parsedPost, enabledHosts, resolvers, settings, statusUI, callbacks = {}) => {
-  const { postId, postNumber } = parsedPost;
+const setProcessing = (isProcessing, postId) => {
+  const p = processing.find(p => p.postId === postId);
+  if (p) {
+    p.processing = isProcessing;
+  } else {
+    processing.push({ postId, processing: isProcessing });
+  }
+};
+
+const downloadPost = async (parsedPost, enabledHosts, resolvers, getSettingsCB, statusUI, callbacks = {}) => {
+  const { postId, postNumber, pageNumber } = parsedPost;
+
+  const settings = getSettingsCB();
 
   // TODO: Fix this filth.
   window.logs = window.logs.filter(l => l.postId !== postId);
@@ -2242,7 +2267,7 @@ const downloadPost = async (parsedPost, enabledHosts, resolvers, settings, statu
   const filenames = [];
   const mimeTypes = [];
 
-  isProcessing = true;
+  setProcessing(postId, true);
 
   log.separator(postId);
   log.post.info(postId, `::Found ${totalDownloadable} resource(s)::`, postNumber);
@@ -2276,6 +2301,8 @@ const downloadPost = async (parsedPost, enabledHosts, resolvers, settings, statu
       totalDownloadable = resolved.length;
     }
   }
+
+  const rootFolderName = `page-${pageNumber}`;
 
   if (!settings.skipDownload) {
     for (const { url, host, folderName } of resolved.filter(r => r.url)) {
@@ -2374,7 +2401,8 @@ const downloadPost = async (parsedPost, enabledHosts, resolvers, settings, statu
             log.post.info(postId, `::Completed::: ${url}`, postNumber);
             log.post.info(postId, `::Saving as::: ${basename} ::to:: ${folder}`, postNumber);
 
-            totalDownloadable > 1 ? zip.file(fn, response.response) : saveAs(response.response, fn);
+            zip.file(fn, response.response);
+            // totalDownloadable > 1 ? zip.file(fn, response.response) : saveAs(response.response, `${rootFolderName}/${fn`);
           },
           onError: () => {
             completed++;
@@ -2392,8 +2420,8 @@ const downloadPost = async (parsedPost, enabledHosts, resolvers, settings, statu
     log.post.info(postId, '::Skipping download::', postNumber);
   }
 
-  if (totalDownloadable > 1) {
-    const filename = customFilename || `${threadTitle} #${postNumber}.zip`;
+  if (totalDownloadable > 0) {
+    const filename = customFilename || `#${postNumber}.zip`;
 
     log.separator(postId);
     log.post.info(postId, `::Preparing zip::`, postNumber);
@@ -2420,29 +2448,42 @@ const downloadPost = async (parsedPost, enabledHosts, resolvers, settings, statu
       );
     }
 
-    zip.generateAsync({ type: 'blob' }).then(blob => {
-      saveAs(blob, filename);
-      isProcessing = false;
+    let blob = await zip.generateAsync({ type: 'blob' });
+    const url = URL.createObjectURL(blob);
+
+    GM_download({
+      url,
+      name: `${threadTitle}/${rootFolderName}/${filename}`,
+      onload: function () {
+        URL.revokeObjectURL(url);
+        blob = null;
+      },
+      onerror: function (response) {
+        console.log('Error response: <' + response['error'] + '> for requested URL: ' + url);
+      },
     });
+    setProcessing(postId, false);
   } else {
-    isProcessing = false;
+    setProcessing(postId, false);
   }
 
   h.hide(statusLabel);
   h.hide(filePB);
   h.hide(totalPB);
 
-  // For logging in console.
-  if (settings.skipDownload) {
-    log.post.info(postId, `::Download completed::`, postNumber);
-  } else {
-    log.post.info(postId, `::Links generation completed::`, postNumber);
+  if (totalDownloadable > 0) {
+    // For logging in console.
+    if (settings.skipDownload) {
+      log.post.info(postId, `::Download completed::`, postNumber);
+    } else {
+      log.post.info(postId, `::Links generation completed::`, postNumber);
+    }
+
+    callbacks && callbacks.onComplete && callbacks.onComplete(totalDownloadable, completed);
   }
 
   // TODO: Fix this filth.
   window.logs = window.logs.filter(l => l.postId !== postId);
-
-  callbacks && callbacks.onComplete && callbacks.onComplete(totalDownloadable, completed);
 };
 
 /**
@@ -2465,8 +2506,30 @@ const addDuplicateTabLink = post => {
   post.parentNode.querySelector('.message-attribution-main').append(dupTabLI);
 };
 
+/**
+ * @param post
+ */
+const addShowDownloadPageBtnLink = post => {
+  const span = document.createElement('span');
+  span.innerHTML = '<i class="fa fa-arrow-up"></i> Download Page';
+
+  const dupTabLI = post.parentNode.querySelector('.u-concealed').cloneNode(true);
+  dupTabLI.setAttribute('class', 'show-download-page');
+
+  const anchor = dupTabLI.querySelector('a');
+  anchor.style.color = 'rgb(138, 138, 138)';
+  anchor.setAttribute('href', '#download-page');
+  anchor.querySelector('time').remove();
+  anchor.parentNode.style.marginLeft = '10px';
+  anchor.append(span);
+
+  post.parentNode.querySelector('.message-attribution-main').append(dupTabLI);
+};
+
+// TODO: Extract to ui.js
 const addDownloadPageButton = () => {
   const downloadAllButton = document.createElement('a');
+  downloadAllButton.setAttribute('id', 'download-page');
   downloadAllButton.setAttribute('href', '#');
   downloadAllButton.setAttribute('class', 'button--link button rippleButton');
 
@@ -2501,8 +2564,8 @@ const selectedPosts = [];
 
 (function () {
   window.addEventListener('beforeunload', e => {
-    if (isProcessing) {
-      const message = 'Downloads are in progress. Sure you wanna this page?';
+    if (processing.find(p => p.processing)) {
+      const message = 'Downloads are in progress. Sure you wanna exit this page?';
       e.returnValue = message;
       return message;
     }
@@ -2533,12 +2596,13 @@ const selectedPosts = [];
     }
 
     init.injectCustomStyles();
+
     h.elements('.message-attribution-opposite').forEach(post => {
       const settings = {
         flatten: false,
-        generateLinks: true,
-        generateLog: true,
-        skipDuplicates: false,
+        generateLinks: false,
+        generateLog: false,
+        skipDuplicates: true,
         skipDownload: false,
         output: [],
       };
@@ -2548,6 +2612,7 @@ const selectedPosts = [];
       const { content, contentContainer } = parsedPost;
 
       addDuplicateTabLink(post);
+      addShowDownloadPageBtnLink(post);
 
       const parsedHosts = parsers.hosts.parseHosts(content);
 
@@ -2584,12 +2649,10 @@ const selectedPosts = [];
         tippyInstance.hide();
       };
 
-      const threadTitle = parsers.thread.parseTitle();
-
       ui.forms.config.post.createPostConfigForm(
         parsedPost,
         parsedHosts,
-        `${threadTitle} #${parsedPost.postNumber}.zip`,
+        `#${parsedPost.postNumber}.zip`,
         settings,
         onFormSubmitCB,
         getTotalDownloadableResourcesForPostCB,
@@ -2610,19 +2673,21 @@ const selectedPosts = [];
         },
       };
 
+      let getSettingsCB = () => settings;
+
       parsedPosts.push({
         parsedPost,
         parsedHosts,
         enabledHosts: getEnabledHostsCB(parsedHosts),
         resolvers,
-        settings,
+        getSettingsCB,
         statusUI,
         postDownloadCallbacks,
       });
 
       btnDownloadPost.addEventListener('click', e => {
         e.preventDefault();
-        downloadPost(parsedPost, getEnabledHostsCB(parsedHosts), resolvers, settings, statusUI, postDownloadCallbacks);
+        downloadPost(parsedPost, getEnabledHostsCB(parsedHosts), resolvers, getSettingsCB, statusUI, postDownloadCallbacks);
       });
     });
 
@@ -2639,7 +2704,7 @@ const selectedPosts = [];
               s.post.parsedPost,
               s.post.enabledHosts,
               s.post.resolvers,
-              s.post.settings,
+              s.post.getSettingsCB,
               s.post.statusUI,
               s.post.postDownloadCallbacks,
             );
@@ -2649,7 +2714,7 @@ const selectedPosts = [];
       // TODO: Extract to ui.js
       const color = ui.getTooltipBackgroundColor();
 
-      let html = ui.forms.createCheckbox('config-toggle-all-posts', '', false);
+      let html = ui.forms.createCheckbox('config-toggle-all-posts', settings.ui.checkboxes.toggleAllCheckboxLabel, false);
 
       parsedPosts
         .filter(p => p.parsedHosts.length)
@@ -2660,7 +2725,9 @@ const selectedPosts = [];
 
           const threadTitle = parsers.thread.parseTitle();
 
-          const ellipsedText = h.limit(textContent.trim() === '' ? threadTitle : textContent.trim(), 20);
+          let defaultPostContent = textContent.trim().replace('​', '');
+
+          const ellipsedText = h.limit(defaultPostContent === '' ? threadTitle : defaultPostContent, 20);
 
           const summary = `<a id="post-content-${postId}" href="#post-${postId}" style="color: dodgerblue"> ${ellipsedText} </a>`;
           html += ui.forms.createCheckbox(`config-download-post-${postId}`, `Post #${postNumber} ${summary}`, false);
@@ -2686,6 +2753,9 @@ const selectedPosts = [];
               document.querySelector(`#config-download-post-${postId}`).addEventListener('change', e => {
                 const selectedPost = selectedPosts.find(s => s.post.parsedPost.postId === postId);
                 selectedPost.enabled = e.target.checked;
+
+                const checkAllCB = h.element('#config-toggle-all-posts');
+                checkAllCB.checked = selectedPosts.filter(s => s.enabled).length === parsedPosts.length;
               });
 
               h.element('#config-toggle-all-posts').addEventListener('change', async e => {
@@ -2698,13 +2768,13 @@ const selectedPosts = [];
                   .map(p => p.parsedPost)
                   .flatMap(p => h.element(`#config-download-post-${p.postId}`));
 
-                const checkedHostCheckboxes = postCheckboxes.filter(e => e.checked);
-                const unCheckedHostCheckboxes = postCheckboxes.filter(e => !e.checked);
+                const checkedPostCheckboxes = postCheckboxes.filter(e => e.checked);
+                const unCheckedPostCheckboxes = postCheckboxes.filter(e => !e.checked);
 
                 if (checked) {
-                  unCheckedHostCheckboxes.forEach(c => c.click());
+                  unCheckedPostCheckboxes.forEach(c => c.click());
                 } else {
-                  checkedHostCheckboxes.forEach(c => c.click());
+                  checkedPostCheckboxes.forEach(c => c.click());
                 }
               });
             });
