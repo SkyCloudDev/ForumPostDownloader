@@ -42,6 +42,7 @@ let processing = [];
  *
  */
 const hosts = [
+  ['simpcity.su:Attachments', [/simpcity.su\/attachments/]],
   ['anonfiles.com:', [/anonfiles.com/]],
   ['jpg.church:image', [/simp\d+.jpg.church\//, /jpg.church\/a\/[~an@-_.]+<no_qs>/]],
   ['ibb.co:image', [/!!https?:\/\/(www.)?([a-z](\d+)?\.)?ibb.co\/([~an@_.-])+(?=")/, /ibb.co\/album\/[~an@_.-]+/]],
@@ -677,6 +678,7 @@ const resolvers = [
       };
     },
   ],
+  [[/simpcity.su\/attachments/], url => url],
   [[/(thumbs|images)(\d+)?.imgbox.com\//, /:!imgbox.com\/g\//], url => url.replace(/_t\./gi, '_o.').replace(/thumbs/i, 'images')],
   [
     [/imgbox.com\/g\//],
@@ -731,6 +733,8 @@ const resolvers = [
   [
     [/imgur\.min\.|imgur.(com|io)/, /:!\w+\.imgur.(com|io)/],
     async (url, http) => {
+      url = url.replace(/\\\//, '/');
+
       let id;
       let type = 'single';
 
@@ -748,7 +752,7 @@ const resolvers = [
       }
 
       if (type === 'album') {
-        const { source } = await http.get(`https://api.imgur.com/3/album/${id.substring(2)}.json`);
+        const { source } = await http.get(`https://api.imgur.com/3/album/${id}.json`);
 
         const props = JSON.parse(source);
 
