@@ -1,6 +1,6 @@
 {
   "name": "forum-post-downloader",
-  "version": "2.2.0",
+  "version": "2.2.2",
   "description": "Downloads images and videos from all the popular hosts.",
   "scripts": {
     "build": "node build.js",

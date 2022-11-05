@@ -619,7 +619,16 @@ const resolvers = [
   [
     [/imagebam.com\/(view|gallery)/],
     async (url, http) => {
-      const { source, dom } = await http.get(url);
+      const date = new Date();
+      date.setTime(date.getTime() + 6 * 60 * 60 * 1000);
+      const expires = '; expires=' + date.toUTCString();
+      const { source, dom } = await http.get(
+        url,
+        {},
+        {
+          cookie: 'nsfw_inter=1' + expires + '; path=/',
+        },
+      );
 
       if (h.contains('gallery-name', source)) {
         const resolved = [];
@@ -923,10 +932,12 @@ const setProcessing = (isProcessing, postId) => {
   }
 };
 
-const downloadPost = async (parsedPost, enabledHosts, resolvers, getSettingsCB, statusUI, callbacks = {}) => {
+const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, getSettingsCB, statusUI, callbacks = {}) => {
   const { postId, postNumber, pageNumber } = parsedPost;
 
   const settings = getSettingsCB();
+
+  const enabledHosts = enabledHostsCB(parsedHosts);
 
   // TODO: Fix this filth.
   window.logs = window.logs.filter(l => l.postId !== postId);
@@ -1011,12 +1022,12 @@ const downloadPost = async (parsedPost, enabledHosts, resolvers, getSettingsCB, 
         try {
           r = await h.promise(resolve => resolve(resolverCB(resource, h.http, passwords)));
         } catch (e) {
-          log.post.error(postId, `::Error resolving::: ${resource}`);
+          log.post.error(postId, `::Error resolving::: ${resource}`, postNumber);
           continue;
         }
 
         if (h.isNullOrUndef(r)) {
-          log.post.error(postId, `::Could not resolve::: ${resource}`);
+          log.post.error(postId, `::Could not resolve::: ${resource}`, postNumber);
           continue;
         }
 
@@ -1063,7 +1074,7 @@ const downloadPost = async (parsedPost, enabledHosts, resolvers, getSettingsCB, 
   const filenames = [];
   const mimeTypes = [];
 
-  setProcessing(postId, true);
+  setProcessing(true, postId);
 
   log.separator(postId);
   log.post.info(postId, `::Found ${totalDownloadable} resource(s)::`, postNumber);
@@ -1198,7 +1209,6 @@ const downloadPost = async (parsedPost, enabledHosts, resolvers, getSettingsCB, 
             log.post.info(postId, `::Saving as::: ${basename} ::to:: ${folder}`, postNumber);
 
             zip.file(fn, response.response);
-            // totalDownloadable > 1 ? zip.file(fn, response.response) : saveAs(response.response, `${rootFolderName}/${fn`);
           },
           onError: () => {
             completed++;
@@ -1250,17 +1260,17 @@ const downloadPost = async (parsedPost, enabledHosts, resolvers, getSettingsCB, 
     GM_download({
       url,
       name: `${threadTitle}/${rootFolderName}/${filename}`,
-      onload: function () {
+      onload: () => {
         URL.revokeObjectURL(url);
         blob = null;
       },
-      onerror: function (response) {
+      onerror: response => {
         console.log('Error response: <' + response['error'] + '> for requested URL: ' + url);
       },
     });
-    setProcessing(postId, false);
+    setProcessing(false, postId);
   } else {
-    setProcessing(postId, false);
+    setProcessing(false, postId);
   }
 
   h.hide(statusLabel);
@@ -1474,7 +1484,7 @@ const selectedPosts = [];
       parsedPosts.push({
         parsedPost,
         parsedHosts,
-        enabledHosts: getEnabledHostsCB(parsedHosts),
+        enabledHostsCB: getEnabledHostsCB,
         resolvers,
         getSettingsCB,
         statusUI,
@@ -1483,7 +1493,7 @@ const selectedPosts = [];
 
       btnDownloadPost.addEventListener('click', e => {
         e.preventDefault();
-        downloadPost(parsedPost, getEnabledHostsCB(parsedHosts), resolvers, getSettingsCB, statusUI, postDownloadCallbacks);
+        downloadPost(parsedPost, parsedHosts, getEnabledHostsCB, resolvers, getSettingsCB, statusUI, postDownloadCallbacks);
       });
     });
 
@@ -1496,9 +1506,11 @@ const selectedPosts = [];
         selectedPosts
           .filter(s => s.enabled)
           .forEach(s => {
+            console.log(s.post.getSettingsCB());
             downloadPost(
               s.post.parsedPost,
-              s.post.enabledHosts,
+              s.post.parsedHosts,
+              s.post.enabledHostsCB,
               s.post.resolvers,
               s.post.getSettingsCB,
               s.post.statusUI,

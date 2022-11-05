@@ -5,7 +5,7 @@ const settings = {
   },
   hosts: {
     goFile: {
-      token: '',
+      token: 'VtpRGPhRzOBbRsfcsCTDFDTolpAODQ88',
     },
   },
   ui: {
