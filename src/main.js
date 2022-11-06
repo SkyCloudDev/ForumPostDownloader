@@ -1211,6 +1211,8 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
 
             if (folder && folder.trim() !== '') {
               fn = totalDownloadable > 1 ? `${postSettings.flatten ? '' : folder + '/'}${basename}` : basename;
+            } else {
+              fn = totalDownloadable > 1 ? `${postSettings.flatten ? '' : folder}/${basename}` : basename;
             }
 
             log.separator(postId);
