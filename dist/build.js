@@ -2414,12 +2414,19 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
             let fn = basename;
 
             if (folder && folder.trim() !== '') {
+              fn = totalDownloadable > 1 ? `${postSettings.flatten ? '' : folder + '/'}${basename}` : basename;
+            } else {
               fn = totalDownloadable > 1 ? `${postSettings.flatten ? '' : folder}/${basename}` : basename;
             }
 
             log.separator(postId);
             log.post.info(postId, `::Completed::: ${url}`, postNumber);
-            log.post.info(postId, `::Saving as::: ${basename} ::to:: ${folder}`, postNumber);
+
+            if (folder && folder.trim() !== '') {
+              log.post.info(postId, `::Saving as::: ${basename} ::to:: ${folder}`, postNumber);
+            } else {
+              log.post.info(postId, `::Saving as::: ${basename}`, postNumber);
+            }
 
             zip.file(fn, response.response);
           },
@@ -2732,7 +2739,6 @@ const selectedPosts = [];
         selectedPosts
           .filter(s => s.enabled)
           .forEach(s => {
-            console.log(s.post.getSettingsCB());
             downloadPost(
               s.post.parsedPost,
               s.post.parsedHosts,
