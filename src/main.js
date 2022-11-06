@@ -355,7 +355,7 @@ const resolvers = [
   ],
   [
     [/gofile.io\/d/],
-    async (url, http, spoilers) => {
+    async (url, http, spoilers, postId) => {
       const resolveAlbum = async (url, spoilers) => {
         const contentId = url.split('/').reverse()[0];
 
@@ -376,7 +376,7 @@ const resolvers = [
         let props = JSON.parse(source?.toString());
 
         if (h.contains('error-passwordRequired', source) && spoilers.length) {
-          log.host.info(postId, postId, `::Album requires password::: ${url}`, 'gofile.io');
+          log.host.info(postId, `::Album requires password::: ${url}`, 'gofile.io');
 
           if (spoilers.length) {
             log.host.info(postId, `::Trying with ${spoilers.length} available password(s)::`, 'gofile.io');
@@ -1026,7 +1026,7 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
         let r = null;
 
         try {
-          r = await h.promise(resolve => resolve(resolverCB(resource, h.http, passwords)));
+          r = await h.promise(resolve => resolve(resolverCB(resource, h.http, passwords, postId)));
         } catch (e) {
           log.post.error(postId, `::Error resolving::: ${resource}`, postNumber);
           continue;
@@ -1170,7 +1170,7 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
             // TODO: Extract to method.
             const filename = filenames.find(f => f.url === url);
 
-            let basename = filename ? filename.filename : h.basename(url).replace(/\?.*/, '').replace(/#.*/, '');
+            let basename = filename ? filename.name : h.basename(url).replace(/\?.*/, '').replace(/#.*/, '');
 
             let ext = h.ext(basename);
 
@@ -1209,10 +1209,8 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
 
             let fn = basename;
 
-            if (folder && folder.trim() !== '') {
-              fn = totalDownloadable > 1 ? `${postSettings.flatten ? '' : folder + '/'}${basename}` : basename;
-            } else {
-              fn = totalDownloadable > 1 ? `${postSettings.flatten ? '' : folder}/${basename}` : basename;
+            if (!postSettings.flatten && folder && folder.trim() !== '') {
+              fn = `${folder}/${basename}`;
             }
 
             log.separator(postId);

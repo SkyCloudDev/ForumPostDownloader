@@ -32,7 +32,9 @@ const h = {
    * @param path
    * @returns {unknown}
    */
-  ext: path => (path.indexOf('.') < 0 ? null : path.split('.').reverse()[0]),
+  ext: path => {
+    return !path || path.indexOf('.') < 0 ? null : path.split('.').reverse()[0];
+  },
   /**
    * @param element
    * @returns {string}
