@@ -5,7 +5,7 @@
 // @author SkyCloudDev
 // @author x111000111
 // @description Downloads images and videos from posts
-// @version 2.2.6
+// @version 2.2.7
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.js
 // @icon https://simp4.jpg.church/simpcityIcon192.png
@@ -38,6 +38,7 @@
 // @connect imgbox.com
 // @connect pixhost.to
 // @connect pixl.is
+// @connect pixl.li
 // @connect pornhub.com
 // @connect img.kiwi
 // @connect instagram.com
@@ -1251,7 +1252,8 @@ const hosts = [
   ['simpcity.su:Attachments', [/simpcity.su\/attachments/]],
   ['anonfiles.com:', [/anonfiles.com/]],
   ['jpg.church:image', [/simp\d+.jpg.church\//, /jpg.church\/a\/[~an@-_.]+<no_qs>/]],
-  ['ibb.co:image', [/!!https?:\/\/(www.)?([a-z](\d+)?\.)?ibb.co\/([~an@_.-])+(?=")/, /ibb.co\/album\/[~an@_.-]+/]],
+  //['ibb.co:image', [/!!https?:\/\/(www.)?([a-z](\d+)?\.)?ibb.co\/([~an@_.-])+(?=")/, /ibb.co\/album\/[~an@_.-]+/]],
+  ['ibb.co:image', [/!!((?<=href=")|(?<=data-src="))https?:\/\/(www.)?([a-z](\d+)?\.)?ibb.co\/([a-zA-Z0-9_.-]){7}((?=")|\/)(([a-zA-Z0-9_.-])+(?="))?/, /ibb.co\/album\/[~an@_.-]+/]],
   ['img.kiwi:image', [/img.kiwi\/image\//, /img.kiwi\/album\//]],
   ['imgbox.com:image', [/(thumbs|images)(\d+)?.imgbox.com\//, /imgbox.com\/g\//]],
   [
@@ -1265,7 +1267,7 @@ const hosts = [
   ['instagram.com:Media', [/!!https:(\/|\\\/){2}s9e.github.io(\/|\\\/)iframe(\/|\\\/)2(\/|\\\/)instagram.*?(?="|&quot;)/]],
   ['instagram.com:Profile', [/!!instagram.com\/[~an@_.-]+|((instagram|insta):(\s+)?)@?[a-zA-Z0-9_.-]+/]],
   ['twitter.com:image', [/([~an@.]+)?twimg.com\//]],
-  ['pixl.is:image', [/([a-z](\d+)\.)pixl.(is|to)\/((img|image)\/)?/, /pixl.(is|to)\/album\//]],
+  ['pixl.li:image', [/([a-z](\d+)\.)pixl.(li|is)\/((img|image)\/)?/, /pixl.(li|is)\/album\//]],
   ['pixhost.to:image', [/t(\d+)?\.pixhost.to\//, /pixhost.to\/gallery\//]],
   ['imagebam.com:image', [/imagebam.com\/(view|gallery)/]],
   ['saint.to:video', [/(saint.to\/embed\/|([~an@]+\.)?saint.to\/videos)/]],
@@ -1327,10 +1329,12 @@ const resolvers = [
     [/([a-z](\d+)?\.)?ibb.co\/[a-zA-Z0-9-_.]+/, /:!([a-z](\d+)?\.)?ibb.co\/[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+/],
     async (url, http) => {
       const { dom } = await http.get(url);
-      return dom.querySelector('.image-viewer-container > img').getAttribute('src');
+      //return dom.querySelector('.image-viewer-container > img').getAttribute('src');
+        return dom.querySelector('.header-content-right > a').getAttribute('href');
     },
   ],
-  [
+  [[/([a-z](\d+)?\.)?ibb.co\/[a-zA-Z0-9-_.]+\/(.*)/],url => url],
+  [ //ibb album downloads need fixing
     [/([a-z](\d+)?\.)?ibb.co\/album\/[a-zA-Z0-9_.-]+/],
     async (url, http) => {
       const { source, dom } = await http.get(url);
@@ -1344,9 +1348,9 @@ const resolvers = [
       };
     },
   ],
-  [[/([a-z](\d+)\.)pixl.(is|to)\/((img|image)\/)?/, /:!pixl.(is|to)\/album\//], url => url.replace('.th.', '.').replace('.md.', '.')],
+  [[/([a-z](\d+)\.)pixl.(li|is)\/((img|image)\/)?/, /:!pixl.(li|is)\/album\//], url => url.replace('.th.', '.').replace('.md.', '.')],
   [
-    [/pixl.(is|to)\/album\//],
+    [/pixl.(li|is)\/album\//],
     async (url, http) => {
       const { source, dom } = await http.get(url);
 
@@ -1985,7 +1989,7 @@ const resolvers = [
     },
   ],
   [[/\w+\.imgur.(com|io)/], url => url],
-  [[/twimg.com\//], url => url.replace(':large', '').replace('&amp;', '&')],
+  [[/twimg.com\//], url => url.replace(/https?:\/\/pbs.twimg\.com\/media\/(.{1,15})(\?format=)?(.*)&amp;name=(.*)/, 'https://pbs.twimg.com/media/$1.$3')],
   [
     [/(disk\.)?yandex\.[a-z]+/],
     async (url, http) => {
@@ -2376,7 +2380,13 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
             // TODO: Extract to method.
             const filename = filenames.find(f => f.url === url);
 
-            let basename = filename ? filename.name : h.basename(url).replace(/\?.*/, '').replace(/#.*/, '');
+            let basename;
+
+            if (url.includes('https://pixeldrain.com/')){
+                basename = response.responseHeaders.match(/^content-disposition.+(?:filename=)(.+)$/mi)[1].replace(/\"/g, '');
+            } else{
+                basename = filename ? filename.name : h.basename(url).replace(/\?.*/, '').replace(/#.*/, '');
+            }
 
             let ext = h.ext(basename);
 
@@ -2592,7 +2602,7 @@ const registerPostReaction = postFooter => {
   if (!hasReaction) {
     const reactionAnchor = postFooter.querySelector('.reaction--imageHidden');
     if (reactionAnchor) {
-      reactionAnchor.setAttribute('href', reactionAnchor.getAttribute('href').replace('_id=1', '_id=2'));
+      reactionAnchor.setAttribute('href', reactionAnchor.getAttribute('href').replace('_id=1', '_id=33'));
       reactionAnchor.click();
     }
   }
