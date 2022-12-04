@@ -5,9 +5,9 @@
 // @author SkyCloudDev
 // @author x111000111
 // @description Downloads images and videos from posts
-// @version 2.2.7
-// @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.js
-// @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.js
+// @version 2.2.8
+// @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
+// @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.jpg.church/simpcityIcon192.png
 // @license WTFPL; http://www.wtfpl.net/txt/copying/
 // @match https://simpcity.su/threads/*
@@ -26,7 +26,7 @@
 // @connect cyberdrop.cc
 // @connect cyberdrop.nl
 // @connect cyberdrop.to
-// @connect cyberfile.is
+// @connect cyberfile.su
 // @connect saint.to
 // @connect sendvid.com
 // @connect i.redd.it
@@ -1232,7 +1232,7 @@ let processing = [];
  *
  * For a completely custom pattern, put !! (two excl. characters) anywhere in it:
  *
- * [/!!https:\/\/cyberfile.is\/\w+(?=")/, /cyberfile.is\/folder\//]
+ * [/!!https:\/\/cyberfile.su\/\w+(?=")/, /cyberfile.su\/folder\//]
  *
  * @signature string The name and categories of the host, separated by a colon.
  * @matchers array The name and categories of the host, separated by a colon.
@@ -1251,9 +1251,9 @@ let processing = [];
 const hosts = [
   ['simpcity.su:Attachments', [/simpcity.su\/attachments/]],
   ['anonfiles.com:', [/anonfiles.com/]],
-  ['jpg.church:image', [/simp\d+.jpg.church\//, /jpg.church\/a\/[~an@-_.]+<no_qs>/]],
+  ['jpg.church:image', [/simp\d+.jpg.church\/(?!banner-c\.png)/, /jpg.church\/a\/[~an@-_.]+<no_qs>/]],
   //['ibb.co:image', [/!!https?:\/\/(www.)?([a-z](\d+)?\.)?ibb.co\/([~an@_.-])+(?=")/, /ibb.co\/album\/[~an@_.-]+/]],
-  ['ibb.co:image', [/!!((?<=href=")|(?<=data-src="))https?:\/\/(www.)?([a-z](\d+)?\.)?ibb.co\/([a-zA-Z0-9_.-]){7}((?=")|\/)(([a-zA-Z0-9_.-])+(?="))?/, /ibb.co\/album\/[~an@_.-]+/]],
+  ['ibb.co:image', [/!!((?<=href="|data-src="))https?:\/\/(www.)?([a-z](\d+)?\.)?ibb\.co\/([a-zA-Z0-9_.-]){7}((?=")|\/)(([a-zA-Z0-9_.-])+(?="))?/, /ibb.co\/album\/[~an@_.-]+/]],
   ['img.kiwi:image', [/img.kiwi\/image\//, /img.kiwi\/album\//]],
   ['imgbox.com:image', [/(thumbs|images)(\d+)?.imgbox.com\//, /imgbox.com\/g\//]],
   [
@@ -1266,8 +1266,9 @@ const hosts = [
   ['reddit.com:image', [/(\w+)?.redd.it/]],
   ['instagram.com:Media', [/!!https:(\/|\\\/){2}s9e.github.io(\/|\\\/)iframe(\/|\\\/)2(\/|\\\/)instagram.*?(?="|&quot;)/]],
   ['instagram.com:Profile', [/!!instagram.com\/[~an@_.-]+|((instagram|insta):(\s+)?)@?[a-zA-Z0-9_.-]+/]],
+  ['nitter:image', [/nitter\.(.{1,20})\/pic/]],
   ['twitter.com:image', [/([~an@.]+)?twimg.com\//]],
-  ['pixl.li:image', [/([a-z](\d+)\.)pixl.(li|is)\/((img|image)\/)?/, /pixl.(li|is)\/album\//]],
+  ['pixl.li:image', [/([a-z](\d+)?\.)pixl.(li|is)\/((img|image)\/)?/, /pixl.(li|is)\/album\//]],
   ['pixhost.to:image', [/t(\d+)?\.pixhost.to\//, /pixhost.to\/gallery\//]],
   ['imagebam.com:image', [/imagebam.com\/(view|gallery)/]],
   ['saint.to:video', [/(saint.to\/embed\/|([~an@]+\.)?saint.to\/videos)/]],
@@ -1279,7 +1280,7 @@ const hosts = [
   ['erome.com:', [/erome.com\/a\//]],
   ['box.com:', [/m\.box\.com\//]],
   ['yandex.ru:', [/(disk\.)?yandex\.[a-z]+/]],
-  ['cyberfile.is:', [/!!https:\/\/cyberfile.is\/\w+(?=")/, /cyberfile.is\/folder\//]],
+  ['cyberfile.su:', [/!!https:\/\/cyberfile.su\/\w+(?=")/, /cyberfile.su\/folder\//]],
   ['cyberdrop.me:', [/fs-\d+.cyberdrop.(me|to|cc|nl)\//, /cyberdrop.(me|to|cc|nl)\/a\//]],
   ['pornhub.com:video', [/([~an@]+\.)?pornhub.com\/view_video/]],
   ['noodlemagazine.com:video', [/(adult.)?noodlemagazine.com\/watch\//]],
@@ -1292,7 +1293,10 @@ const hosts = [
  * @type {((RegExp[]|(function(*): *))[]|(RegExp[]|(function(*, *): Promise<{dom: *, source: *, folderName: *, resolved}>))[]|(RegExp[]|(function(*, *): Promise<string>))[]|(RegExp[]|(function(*, *): Promise<{dom: *, source: *, folderName: *, resolved}>))[]|(RegExp[]|(function(*): *))[])[]}
  */
 const resolvers = [
+  [[/https?:\/\/nitter\.(.{1,20})\/pic\/(orig\/)?media%2F(.{1,15})/i], url => url.replace(/https?:\/\/nitter\.(.{1,20})\/pic\/(orig\/)?media%2F(.{1,15})/i, 'https://pbs.twimg.com/media/$3')],
+  //[[/https:\/\/simp5\.jpg\.church\/banner-c\.png/i], url => url.replace("https://simp5.jpg.church/banner-c.png", "")],
   [[/jpg.church\//i, /:!jpg.church\/a\//i], url => url.replace('.th.', '.').replace('.md.', '.')],
+
   [
     [/jpg.church\/a\//i],
     async (url, http) => {
@@ -1348,7 +1352,7 @@ const resolvers = [
       };
     },
   ],
-  [[/([a-z](\d+)\.)pixl.(li|is)\/((img|image)\/)?/, /:!pixl.(li|is)\/album\//], url => url.replace('.th.', '.').replace('.md.', '.')],
+  [[/([a-z](\d+)?\.)pixl.(li|is)\/((img|image)\/)?/, /:!pixl.(li|is)\/album\//], url => url.replace('.th.', '.').replace('.md.', '.')],
   [
     [/pixl.(li|is)\/album\//],
     async (url, http) => {
@@ -1685,12 +1689,12 @@ const resolvers = [
     },
   ],
   [
-    [/cyberfile.is\//, /:!cyberfile.is\/folder\//],
+    [/cyberfile.su\//, /:!cyberfile.su\/folder\//],
     async (url, http) => {
       const { source } = await http.get(url);
       const u = h.re.matchAll(/(?<=showFileInformation\()\d+(?=\))/gis, source)[0];
       const { source: response } = await http.post(
-        'https://cyberfile.is/account/ajax/file_details',
+        'https://cyberfile.su/account/ajax/file_details',
         `u=${u}`,
         {},
         {
@@ -1701,7 +1705,7 @@ const resolvers = [
     },
   ],
   [
-    [/cyberfile.is\/folder\//],
+    [/cyberfile.su\/folder\//],
     async (url, http) => {
       const { source, dom } = await http.get(url);
 
@@ -1710,7 +1714,7 @@ const resolvers = [
       const nodeId = h.re.matchAll(/(?<='folder',\s').*?(?=')/gis, script);
 
       const { source: response } = await http.post(
-        'https://cyberfile.is/account/ajax/load_files',
+        'https://cyberfile.su/account/ajax/load_files',
         `pageType=folder&nodeId=${nodeId}`,
         {},
         {
@@ -1733,7 +1737,7 @@ const resolvers = [
           const { source } = await http.get(fileUrl);
           const u = h.re.matchAll(/(?<=showFileInformation\()\d+(?=\))/gis, source)[0];
           const { source: response } = await http.post(
-            'https://cyberfile.is/account/ajax/file_details',
+            'https://cyberfile.su/account/ajax/file_details',
             `u=${u}`,
             {},
             {
@@ -2308,21 +2312,21 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
 
   if (postSettings.skipDuplicates) {
     const unique = [];
-    for (const r of resolved.filter(r => r.url).sort((a, b) => (a.host.type !== 'folder' || b.host.type !== 'folder' ? -1 : 1))) {
-      const filename = h.basename(r.url);
-      if (unique.find(u => u.filename.toLowerCase() === filename.toLowerCase())) {
-        log.post.info(postId, `::Skipped duplicate::: ${filename} ::from:: ${r.url}`, postNumber);
-        continue;
-      }
-      unique.push({ ...r, filename });
-    }
+        for (const r of resolved.filter(r => r.url).sort((a, b) => (a.host.type !== 'folder' || b.host.type !== 'folder' ? -1 : 1))) {
+            const filename = h.basename(r.url);
+            if (unique.find(u => u.filename.toLowerCase() === filename.toLowerCase())) {
+                log.post.info(postId, `::Skipped duplicate::: ${filename} ::from:: ${r.url}`, postNumber);
+                continue;
+            }
+            unique.push({ ...r, filename });
+        }
 
-    if (unique.length !== resolved.length) {
-      h.ui.setText(statusLabel, `Removed ${resolved.length - unique.length} duplicates...`);
-      unique.forEach(u => delete u.filename);
-      resolved = unique;
-      totalDownloadable = resolved.length;
-    }
+        if (unique.length !== resolved.length) {
+            h.ui.setText(statusLabel, `Removed ${resolved.length - unique.length} duplicates...`);
+            unique.forEach(u => delete u.filename);
+            resolved = unique;
+            totalDownloadable = resolved.length;
+        }
   }
 
   if (!postSettings.skipDownload) {
@@ -2384,7 +2388,10 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
 
             if (url.includes('https://pixeldrain.com/')){
                 basename = response.responseHeaders.match(/^content-disposition.+(?:filename=)(.+)$/mi)[1].replace(/\"/g, '');
-            } else{
+            } else if (url.includes('https://simpcity.su/attachments/')){
+                basename = filename ? filename.name : h.basename(url).replace(/(.*)-(.{3,4})\.\d*$/i, '$1.$2');
+            }
+              else{
                 basename = filename ? filename.name : h.basename(url).replace(/\?.*/, '').replace(/#.*/, '');
             }
 
@@ -2651,7 +2658,7 @@ const selectedPosts = [];
         flatten: false,
         generateLinks: false,
         generateLog: false,
-        skipDuplicates: true,
+        skipDuplicates: false,
         skipDownload: false,
         output: [],
       };
