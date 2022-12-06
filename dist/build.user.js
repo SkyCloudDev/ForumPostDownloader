@@ -5,7 +5,7 @@
 // @author SkyCloudDev
 // @author x111000111
 // @description Downloads images and videos from posts
-// @version 2.2.8
+// @version 2.2.9
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.jpg.church/simpcityIcon192.png
@@ -21,7 +21,7 @@
 // @connect box.com
 // @connect boxcloud.com
 // @connect github.com
-// @connect bunkr.is
+// @connect bunkr.ru
 // @connect cyberdrop.me
 // @connect cyberdrop.cc
 // @connect cyberdrop.nl
@@ -1274,7 +1274,7 @@ const hosts = [
   ['saint.to:video', [/(saint.to\/embed\/|([~an@]+\.)?saint.to\/videos)/]],
   ['redgifs.com:video', [/!!redgifs.com(\/|\\\/)ifr.*?(?="|&quot;)/]],
   ['gfycat.com:video', [/!!gfycat.com(\/|\\\/)ifr.*?(?="|&quot;)/]],
-  ['bunkr.is:', [/(stream|cdn(\d+)?|i(\d+)?).bunkr.is\/(v\/)?/, /bunkr.is\/a\//]],
+  ['bunkr.ru:', [/(stream|cdn(\d+)?|i(\d+)?).bunkr.ru\/(v\/)?/, /bunkr.ru\/a\//]],
   ['pixeldrain.com:', [/pixeldrain.com\/[lu]\//]],
   ['gofile.com:', [/gofile.io\/d/]],
   ['erome.com:', [/erome.com\/a\//]],
@@ -1407,7 +1407,7 @@ const resolvers = [
     },
   ],
   [
-    [/(stream|cdn(\d+)?|i(\d+)?).bunkr.is\/(v\/)?/, /:!bunkr.is\/a\//],
+    [/(stream|cdn(\d+)?|i(\d+)?).bunkr.ru\/(v\/)?/, /:!bunkr.ru\/a\//],
     async (url, http) => {
       url = /(\.zip|\.pdf)/i.test(url) ? url.replace(/cdn\d+/, 'files') : url;
 
@@ -1434,7 +1434,7 @@ const resolvers = [
         }
 
         const filename = h.basename(url).replace('&amp;', '&');
-        const apiUrl = `https://stream.bunkr.is/_next/data/${buildId}/v/${filename}.json`;
+        const apiUrl = `https://stream.bunkr.ru/_next/data/${buildId}/v/${filename}.json`;
 
         const { source: apiSource } = await http.get(apiUrl);
 
@@ -1451,7 +1451,7 @@ const resolvers = [
     },
   ],
   [
-    [/bunkr.is\/a\//],
+    [/bunkr.ru\/a\//],
     async (url, http) => {
       const { source, dom } = await http.get(url);
 
