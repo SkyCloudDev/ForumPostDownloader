@@ -5,7 +5,7 @@
 // @author SkyCloudDev
 // @author x111000111
 // @description Downloads images and videos from posts
-// @version 2.2.9
+// @version 2.3.0
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.jpg.church/simpcityIcon192.png
@@ -20,8 +20,10 @@
 // @connect anonfiles.com
 // @connect box.com
 // @connect boxcloud.com
+// @connect kemono.party
 // @connect github.com
 // @connect bunkr.ru
+// @connect bunkr.la
 // @connect cyberdrop.me
 // @connect cyberdrop.cc
 // @connect cyberdrop.nl
@@ -40,6 +42,7 @@
 // @connect pixl.is
 // @connect pixl.li
 // @connect pornhub.com
+// @connect postimg.cc
 // @connect img.kiwi
 // @connect instagram.com
 // @connect cdninstagram.com
@@ -1251,17 +1254,14 @@ let processing = [];
 const hosts = [
   ['simpcity.su:Attachments', [/simpcity.su\/attachments/]],
   ['anonfiles.com:', [/anonfiles.com/]],
-  ['jpg.church:image', [/simp\d+.jpg.church\/(?!banner-c\.png)/, /jpg.church\/a\/[~an@-_.]+<no_qs>/]],
-  //['ibb.co:image', [/!!https?:\/\/(www.)?([a-z](\d+)?\.)?ibb.co\/([~an@_.-])+(?=")/, /ibb.co\/album\/[~an@_.-]+/]],
+  ['jpg.church:image', [/(simp\d+.)?jpg.church\/(?!(banner-c\.png|img\/))/, /jpg.church\/a\/[~an@-_.]+<no_qs>/]],
+  ['kemono.party:direct link', [/.{2,6}\.kemono.party\/data\//]],
+  ['postimg.cc:image', [/!!https?:\/\/(www.)?i\.?(postimg|pixxxels).cc\/(.{8})/]], //[/!!https?:\/\/(www.)?postimg.cc\/(.{8})/]],
   ['ibb.co:image', [/!!((?<=href="|data-src="))https?:\/\/(www.)?([a-z](\d+)?\.)?ibb\.co\/([a-zA-Z0-9_.-]){7}((?=")|\/)(([a-zA-Z0-9_.-])+(?="))?/, /ibb.co\/album\/[~an@_.-]+/]],
+  ['imagevenue.com:image', [/!!https?:\/\/(www.)?imagevenue\.com\/(.{8})/]],
   ['img.kiwi:image', [/img.kiwi\/image\//, /img.kiwi\/album\//]],
   ['imgbox.com:image', [/(thumbs|images)(\d+)?.imgbox.com\//, /imgbox.com\/g\//]],
-  [
-    'imgur.com:Media',
-    [
-      /!!https:(\/|\\\/){2}s9e.github.io(\/|\\\/)iframe(\/|\\\/)2(\/|\\\/)imgur.*?(?="|&quot;)|(?<=")https:\/\/(www.)?imgur.(com|io).*?(?=")/,
-    ],
-  ],
+  ['imgur.com:Media', [/!!https:(\/|\\\/){2}s9e.github.io(\/|\\\/)iframe(\/|\\\/)2(\/|\\\/)imgur.*?(?="|&quot;)|(?<=")https:\/\/(www.)?imgur.(com|io).*?(?=")/]],
   ['imgur.com:image', [/\w+\.imgur.(com|io)/]],
   ['reddit.com:image', [/(\w+)?.redd.it/]],
   ['instagram.com:Media', [/!!https:(\/|\\\/){2}s9e.github.io(\/|\\\/)iframe(\/|\\\/)2(\/|\\\/)instagram.*?(?="|&quot;)/]],
@@ -1294,9 +1294,21 @@ const hosts = [
  */
 const resolvers = [
   [[/https?:\/\/nitter\.(.{1,20})\/pic\/(orig\/)?media%2F(.{1,15})/i], url => url.replace(/https?:\/\/nitter\.(.{1,20})\/pic\/(orig\/)?media%2F(.{1,15})/i, 'https://pbs.twimg.com/media/$3')],
-  //[[/https:\/\/simp5\.jpg\.church\/banner-c\.png/i], url => url.replace("https://simp5.jpg.church/banner-c.png", "")],
+  [[/imagevenue.com/],
+    async (url, http) => {
+      const { dom } = await http.get(url);
+      return dom.querySelector('.col-md-12 > a > img').getAttribute('src');
+    },
+  ],
+  [[/(postimg|pixxxels).cc/],
+    async (url, http) => {
+      url = url.replace(/https?:\/\/(www.)?i\.?(postimg|pixxxels).cc\/(.{8})(.*)/, 'https://postimg.cc/$3');
+      const { dom } = await http.get(url);
+      return dom.querySelector('.controls > nobr > a').getAttribute('href');
+    },
+  ],
+  [[/kemono.party\/data/], url => url],
   [[/jpg.church\//i, /:!jpg.church\/a\//i], url => url.replace('.th.', '.').replace('.md.', '.')],
-
   [
     [/jpg.church\/a\//i],
     async (url, http) => {
@@ -1333,7 +1345,6 @@ const resolvers = [
     [/([a-z](\d+)?\.)?ibb.co\/[a-zA-Z0-9-_.]+/, /:!([a-z](\d+)?\.)?ibb.co\/[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+/],
     async (url, http) => {
       const { dom } = await http.get(url);
-      //return dom.querySelector('.image-viewer-container > img').getAttribute('src');
         return dom.querySelector('.header-content-right > a').getAttribute('href');
     },
   ],
@@ -2390,6 +2401,8 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
                 basename = response.responseHeaders.match(/^content-disposition.+(?:filename=)(.+)$/mi)[1].replace(/\"/g, '');
             } else if (url.includes('https://simpcity.su/attachments/')){
                 basename = filename ? filename.name : h.basename(url).replace(/(.*)-(.{3,4})\.\d*$/i, '$1.$2');
+            } else if (url.includes('kemono.party')){
+                basename = filename ? filename.name : h.basename(url).replace(/(.*)\?f=(.*)/, '$2').replace('%20', ' ');
             }
               else{
                 basename = filename ? filename.name : h.basename(url).replace(/\?.*/, '').replace(/#.*/, '');
