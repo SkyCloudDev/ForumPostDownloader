@@ -5,7 +5,7 @@
 // @author SkyCloudDev
 // @author x111000111
 // @description Downloads images and videos from posts
-// @version 2.3.0
+// @version 2.3.1
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.jpg.church/simpcityIcon192.png
@@ -1778,9 +1778,20 @@ const resolvers = [
   [
     [/redgifs.com(\/|\\\/)ifr/],
     async (url, http) => {
-      url = `https://redgifs.com/watch/${url.split('/').reverse()[0]}`;
-      const { dom } = await http.get(url);
-      return dom.querySelector('meta[property="og:video"]')?.content.replace('&amp;').trim();
+      const id = url.split('/').reverse()[0];
+      url = `https://api.redgifs.com/v2/gifs/${id}`;
+      const token = GM_getValue('redgifs_token', null);
+      const { source } = await http.get(url, {}, { 'Authorization': `Bearer ${token}` });
+      if (h.contains('urls', source)) {
+        const urls = JSON.parse(source).gif.urls;
+        if (urls.hd) {
+          return urls.hd;
+        }
+
+        return urls.sd;
+      }
+
+      return null;
     },
   ],
   [[/fs-\d+.cyberdrop.(me|to|cc|nl)\//, /:!cyberdrop.(me|to|cc|nl)\/a\//], url => url.replace(/(fs|img)-\d+/i, 'fs-01')],
@@ -2662,6 +2673,21 @@ const selectedPosts = [];
       } catch (e) {
         console.error(goFileTokenFetchFailedErr);
       }
+    }
+
+    try {
+      let redGifsToken = GM_getValue('regifs_token', null);
+
+      if (!redGifsToken) {
+        const { source } = await h.http.get('https://api.redgifs.com/v2/auth/temporary');
+        if (h.contains('token', source)) {
+          const token = JSON.parse(source).token;
+          GM_setValue('redgifs_token', token);
+        }
+      }
+    } catch (e) {
+      console.error("Error getting temporary redgifs auth token:");
+      console.error(e);
     }
 
     init.injectCustomStyles();
