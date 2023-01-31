@@ -5,7 +5,7 @@
 // @author SkyCloudDev
 // @author x111000111
 // @description Downloads images and videos from posts
-// @version 2.3.1
+// @version 2.3.2
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.jpg.church/simpcityIcon192.png
@@ -1342,24 +1342,65 @@ const resolvers = [
     },
   ],
   [
-    [/([a-z](\d+)?\.)?ibb.co\/[a-zA-Z0-9-_.]+/, /:!([a-z](\d+)?\.)?ibb.co\/[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+/],
+    [/([a-z](\d+)?\.)?ibb.co\/[a-zA-Z0-9-_.]+/, /:!([a-z](\d+)?\.)?ibb.co\/album\/[a-zA-Z0-9_.-]+/],
     async (url, http) => {
       const { dom } = await http.get(url);
-        return dom.querySelector('.header-content-right > a').getAttribute('href');
+      return dom.querySelector('.header-content-right > a').getAttribute('href');
     },
   ],
-  [[/([a-z](\d+)?\.)?ibb.co\/[a-zA-Z0-9-_.]+\/(.*)/],url => url],
-  [ //ibb album downloads need fixing
+  [
     [/([a-z](\d+)?\.)?ibb.co\/album\/[a-zA-Z0-9_.-]+/],
     async (url, http) => {
+      const albumId = url.replace(/\?.*/, '').split('/').reverse()[0];
       const { source, dom } = await http.get(url);
+      const imageCount = Number(dom.querySelector('span[data-text="image-count"]').innerText);
+      const pageCount = Math.ceil(imageCount / 32);
+      const authToken = h.re.match(/(?<=auth_token=").*?(?=")/i, source);
+
+      const fetchPageData = async (albumId, page, seekEnd, authToken) => {
+        const seek = seekEnd || '';
+        const data = `action=list&list=images&sort=date_desc&page=${page}&from=album&albumid=${albumId}&params_hidden%5Blist%5D=images&params_hidden%5Bfrom%5D=album&params_hidden%5Balbumid%5D=${albumId}&auth_token=${authToken}&seek=${seek}&items_per_page=32`;
+        const { source: response } = await http.post(
+          'https://ibb.co/json',
+          data,
+          {},
+          {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+        );
+
+        try {
+          const parsed = JSON.parse(response);
+
+          if (parsed && parsed.status_code && parsed.status_code === 200) {
+            const html = parsed.html.replace('"', '"');
+            return {
+              urls: h.re.matchAll(/(?<=data-object=').*?(?=')/gi, html).map(o => JSON.parse(decodeURIComponent(o)).url),
+              parsed,
+            };
+          }
+
+          return { urls: [], parsed };
+        } catch (e) {
+          return { urls: [], parsed };
+        }
+      };
+
+      const resolved = [];
+
+      let seekEnd = '';
+
+      for (let i = 1; i <= pageCount; i++) {
+        const data = await fetchPageData(albumId, i, seekEnd, authToken);
+        seekEnd = data.parsed.seekEnd;
+        resolved.push(...data.urls);
+      }
+
       return {
         dom,
         source,
         folderName: dom.querySelector('meta[property="og:title"]').content.trim(),
-        resolved: [...dom.querySelectorAll('.image-container > img')]
-          .map(img => img.getAttribute('src'))
-          .map(url => url.replace('.th.', '.').replace('.md.', '.')),
+        resolved,
       };
     },
   ],
