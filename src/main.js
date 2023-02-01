@@ -1436,7 +1436,6 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
   h.hide(statusLabel);
   h.hide(filePB);
   h.hide(totalPB);
-  window.logs = window.logs.filter(l => l.postId !== postId);
 
   if (!isFF) {
     setProcessing(false, postId);
@@ -1507,6 +1506,8 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
 
     callbacks && callbacks.onComplete && callbacks.onComplete(totalDownloadable, completed);
   }
+
+  window.logs = window.logs.filter(l => l.postId !== postId);
 };
 
 /**
