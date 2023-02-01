@@ -1477,19 +1477,21 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
       saveAs(blob, filename);
       setProcessing(false, postId);
     } else {
-      let url = URL.createObjectURL(blob);
-      GM_download({
-        url,
-        name: `${title}/#${postNumber}/generated.zip`,
-        onload: () => {
-          URL.revokeObjectURL(url);
-          blob = null;
-        },
-        onerror: response => {
-          console.log(`Error writing file ${fn} to disk. There may be more details below.`);
-          console.log(response);
-        },
-      });
+      if (postSettings.generateLog || postSettings.generateLinks) {
+        let url = URL.createObjectURL(blob);
+        GM_download({
+          url,
+          name: `${title}/#${postNumber}/generated.zip`,
+          onload: () => {
+            URL.revokeObjectURL(url);
+            blob = null;
+          },
+          onerror: response => {
+            console.log(`Error writing file ${fn} to disk. There may be more details below.`);
+            console.log(response);
+          },
+        });
+      }
     }
   } else {
     setProcessing(false, postId);
