@@ -4,8 +4,9 @@
 // @namespace https://github.com/SkyCloudDev
 // @author SkyCloudDev
 // @author x111000111
+// @author backwards
 // @description Downloads images and videos from posts
-// @version 2.3.2
+// @version 2.3.3
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.jpg.church/simpcityIcon192.png
@@ -31,7 +32,10 @@
 // @connect cyberfile.su
 // @connect saint.to
 // @connect sendvid.com
-// @connect i.redd.it
+// @connect redd.it
+// @connect dailystar.co.uk
+// @connect pinuderest.com
+// @connect onlyfans.com
 // @connect i.ibb.co
 // @connect ibb.co
 // @connect imagebam.com
@@ -77,7 +81,7 @@
 const JSZip = window.JSZip;
 const tippy = window.tippy;
 const http = window.GM_xmlhttpRequest;
-
+window.isFF = typeof InstallTrigger !== 'undefined';
 window.logs = [];
 
 const log = {
@@ -167,7 +171,7 @@ const settings = {
   },
   hosts: {
     goFile: {
-      token: 'VtpRGPhRzOBbRsfcsCTDFDTolpAODQ88',
+      token: 'KPQJgKlYsy8JPmbuxj3MC4e5PFEpdZYP',
     },
   },
   ui: {
@@ -504,9 +508,18 @@ const parsers = {
       // 2. CodeBlock headers
       // 3. Spoiler button text from each spoiler
       // 2. Icons from un-furled urls (url parser can sometimes match them).
-      ['.js-unfurl-figure', '.js-unfurl-favicon', '.bbCodeBlock-title', 'blockquote', '.button-text > span']
+      ['.js-unfurl-figure', '.js-unfurl-favicon', 'blockquote', '.button-text > span']
         .flatMap(i => [...messageContentClone.querySelectorAll(i)])
-        .forEach(i => i.remove());
+        .forEach(i => {
+          if (i.tagName === 'BLOCKQUOTE') {
+            // Only remove blockquotes that quote the other posts.
+            if (i.querySelector('.bbCodeBlock-title')) {
+              i.remove();
+            }
+          } else {
+            i.remove();
+          }
+        });
 
       // Remove thread links.
       [...messageContentClone.querySelectorAll('.contentRow-header > a[href^="https://simpcity.su/threads"]')]
@@ -983,21 +996,6 @@ const ui = {
           `;
         },
         /**
-         * @returns {string}
-         */
-        createNoSelectionWarningLabel: () => {
-          return `
-          <div class="menu-row" style="margin-top: -3px; display: none;" id="no-selection-warning">
-            <p style="color: #fa3e3e; margin: 0; font-weight: bold;">
-                <img alt="" style="width: 24px; height: 24px; padding-right: 2px;" src="https://cdn.betterttv.net/emote/5e3b01ce751afe7d553d4292/3x" />
-                <span style="position: absolute; margin-top: 5px; margin-left: 5px;">
-                    No files selected for downloading
-                 </span>
-            </p>
-          </div>
-          `;
-        },
-        /**
          * @param parsedPost
          * @param parsedHosts
          * @param defaultFilename
@@ -1028,36 +1026,47 @@ const ui = {
 
           ui.forms.config.post.createFlattenCheckbox(postId, settings.flatten);
 
+          const settingsHeading = `
+          <div class="menu-row">
+            <div style="font-weight: bold; margin-top:3px; margin-bottom: 4px; color: dodgerblue;">
+                Settings
+            </div>
+          </div>
+          `;
+
           let formHtml = [
-            ui.forms.config.post.createFilenameInput(customFilename, postId, color, defaultFilename),
+            window.isFF ? ui.forms.config.post.createFilenameInput(customFilename, postId, color, defaultFilename) : null,
+            settingsHeading,
             ui.forms.config.post.createFlattenCheckbox(postId, settings.flatten),
             ui.forms.config.post.createSkipDuplicatesCheckbox(postId, settings.skipDuplicates),
             ui.forms.config.post.createGenerateLinksCheckbox(postId, settings.generateLinks),
             ui.forms.config.post.createGenerateLogCheckbox(postId, settings.generateLog),
             ui.forms.config.post.createSkipDownloadCheckbox(postId, settings.skipDownload),
             ui.forms.config.post.createHostCheckboxes(postId, filterLabel, hostsHtml, parsedHosts.length > 1),
-            ui.forms.config.post.createNoSelectionWarningLabel(),
             ui.forms.createRow(
               '<a href="#download-page" style="color: dodgerblue; font-weight: bold"><i class="fa fa-arrow-up"></i> Show Download Page Button</a>',
             ),
-          ];
+          ].filter(c => c !== null);
 
           const configForm = ui.forms.config.post.createForm(postId, color, formHtml.join(''));
 
           ui.tooltip(btnDownloadPost, configForm, {
             onShown: instance => {
-              h.element(`#filename-input-${postId}`).addEventListener('input', e => {
-                const value = e.target.value;
-                const o = settings.output.find(o => o.postId === postId);
-                if (o) {
-                  o.value = value;
-                } else {
-                  settings.output.push({
-                    postId,
-                    value,
-                  });
-                }
-              });
+              const inputEl = h.element(`#filename-input-${postId}`);
+              if (inputEl) {
+                inputEl.addEventListener('input', e => {
+                  const value = e.target.value;
+                  const o = settings.output.find(o => o.postId === postId);
+                  if (o) {
+                    o.value = value;
+                  } else {
+                    settings.output.push({
+                      postId,
+                      value,
+                    });
+                  }
+                });
+              }
 
               let prevSettings = JSON.parse(JSON.stringify(settings));
 
@@ -1150,32 +1159,31 @@ const ui = {
                   host.enabled = e.target.checked;
                   const filteredCount = totalDownloadableResourcesForPostCB(parsedHosts);
                   h.element('#filtered-count').textContent = `(${filteredCount})`;
-                  const warningLabel = h.element('#no-selection-warning');
-                  if (filteredCount < 1) {
-                    h.show(warningLabel);
-                  } else {
-                    h.hide(warningLabel);
-                  }
 
-                  if (parsedHosts.length > 1) {
+                  if (parsedHosts.length > 0) {
                     const checkedLength = parsedHosts
                       .flatMap(host => h.element(`#downloader-host-${host.id}-${postId}`))
                       .filter(h => h.checked).length;
+
+                    const totalResources = parsedHosts
+                      .reduce((acc, host) => acc + host.resources.length, 0);
 
                     const totalDownloadableResources = parsedHosts
                       .filter(host => host.enabled && host.resources.length)
                       .reduce((acc, host) => acc + host.resources.length, 0);
 
-                    btnDownloadPost.innerHTML = `🡳 Download (${totalDownloadableResources})`;
+                    btnDownloadPost.innerHTML = `🡳 Download (${totalDownloadableResources}/${totalResources})`;
 
-                    const toggleAllHostsCheckbox = h.element(`#settings-toggle-all-hosts-${postId}`);
+                    if (parsedHosts.length > 1) {
+                      const toggleAllHostsCheckbox = h.element(`#settings-toggle-all-hosts-${postId}`);
 
-                    if (checkedLength !== parsedHosts.length) {
-                      toggleAllHostsCheckbox.removeAttribute('checked');
-                      toggleAllHostsCheckbox.checked = false;
-                    } else {
-                      toggleAllHostsCheckbox.setAttribute('checked', 'checked');
-                      toggleAllHostsCheckbox.checked = true;
+                      if (checkedLength !== parsedHosts.length) {
+                        toggleAllHostsCheckbox.removeAttribute('checked');
+                        toggleAllHostsCheckbox.checked = false;
+                      } else {
+                        toggleAllHostsCheckbox.setAttribute('checked', 'checked');
+                        toggleAllHostsCheckbox.checked = true;
+                      }
                     }
                   }
                 });
@@ -1254,14 +1262,28 @@ let processing = [];
 const hosts = [
   ['simpcity.su:Attachments', [/simpcity.su\/attachments/]],
   ['anonfiles.com:', [/anonfiles.com/]],
-  ['jpg.church:image', [/(simp\d+.)?jpg.church\/(?!(banner-c\.png|img\/))/, /jpg.church\/a\/[~an@-_.]+<no_qs>/]],
+  ['jpg.church:image', [/simp(\d+.)?jpg.church\/(?!(banner-c\.png|img\/))/, /jpg.church\/a\/[~an@-_.]+<no_qs>/]],
   ['kemono.party:direct link', [/.{2,6}\.kemono.party\/data\//]],
   ['postimg.cc:image', [/!!https?:\/\/(www.)?i\.?(postimg|pixxxels).cc\/(.{8})/]], //[/!!https?:\/\/(www.)?postimg.cc\/(.{8})/]],
-  ['ibb.co:image', [/!!((?<=href="|data-src="))https?:\/\/(www.)?([a-z](\d+)?\.)?ibb\.co\/([a-zA-Z0-9_.-]){7}((?=")|\/)(([a-zA-Z0-9_.-])+(?="))?/, /ibb.co\/album\/[~an@_.-]+/]],
+  [
+    'ibb.co:image',
+    [
+      /!!((?<=href="|data-src="))https?:\/\/(www.)?([a-z](\d+)?\.)?ibb\.co\/([a-zA-Z0-9_.-]){7}((?=")|\/)(([a-zA-Z0-9_.-])+(?="))?/,
+      /ibb.co\/album\/[~an@_.-]+/,
+    ],
+  ],
   ['imagevenue.com:image', [/!!https?:\/\/(www.)?imagevenue\.com\/(.{8})/]],
   ['img.kiwi:image', [/img.kiwi\/image\//, /img.kiwi\/album\//]],
   ['imgbox.com:image', [/(thumbs|images)(\d+)?.imgbox.com\//, /imgbox.com\/g\//]],
-  ['imgur.com:Media', [/!!https:(\/|\\\/){2}s9e.github.io(\/|\\\/)iframe(\/|\\\/)2(\/|\\\/)imgur.*?(?="|&quot;)|(?<=")https:\/\/(www.)?imgur.(com|io).*?(?=")/]],
+  [
+    'imgur.com:Media',
+    [
+      /!!https:(\/|\\\/){2}s9e.github.io(\/|\\\/)iframe(\/|\\\/)2(\/|\\\/)imgur.*?(?="|&quot;)|(?<=")https:\/\/(www.)?imgur.(com|io).*?(?=")/,
+    ],
+  ],
+  ['onlyfans.com:image', [/public.onlyfans.com\/files/]],
+  ['dailystar.co.uk:image', [/i(\d+)?-prod\.dailystar.co.uk\/.*?\.(jpg|jpeg|png)/]],
+  ['pinuderest.com:image', [/pinuderest.com\/wp-content\/.*?\.(jpg|jpeg|png)/]],
   ['imgur.com:image', [/\w+\.imgur.(com|io)/]],
   ['reddit.com:image', [/(\w+)?.redd.it/]],
   ['instagram.com:Media', [/!!https:(\/|\\\/){2}s9e.github.io(\/|\\\/)iframe(\/|\\\/)2(\/|\\\/)instagram.*?(?="|&quot;)/]],
@@ -1274,7 +1296,10 @@ const hosts = [
   ['saint.to:video', [/(saint.to\/embed\/|([~an@]+\.)?saint.to\/videos)/]],
   ['redgifs.com:video', [/!!redgifs.com(\/|\\\/)ifr.*?(?="|&quot;)/]],
   ['gfycat.com:video', [/!!gfycat.com(\/|\\\/)ifr.*?(?="|&quot;)/]],
-  ['bunkr.ru:', [/(stream|cdn(\d+)?|i(\d+)?).bunkr.ru\/(v\/)?/, /bunkr.ru\/a\//]],
+  [
+    'bunkr.ru:',
+    [/!!(?<=href=")https:\/\/(stream|cdn(\d+)?).*?(?=")|(?<=(href="|src="))https:\/\/i(\d+)?.bunkr.ru\/(v\/)?.*?(?=")/, /bunkr.ru\/a\//],
+  ],
   ['pixeldrain.com:', [/pixeldrain.com\/[lu]\//]],
   ['gofile.com:', [/gofile.io\/d/]],
   ['erome.com:', [/erome.com\/a\//]],
@@ -1293,14 +1318,19 @@ const hosts = [
  * @type {((RegExp[]|(function(*): *))[]|(RegExp[]|(function(*, *): Promise<{dom: *, source: *, folderName: *, resolved}>))[]|(RegExp[]|(function(*, *): Promise<string>))[]|(RegExp[]|(function(*, *): Promise<{dom: *, source: *, folderName: *, resolved}>))[]|(RegExp[]|(function(*): *))[])[]}
  */
 const resolvers = [
-  [[/https?:\/\/nitter\.(.{1,20})\/pic\/(orig\/)?media%2F(.{1,15})/i], url => url.replace(/https?:\/\/nitter\.(.{1,20})\/pic\/(orig\/)?media%2F(.{1,15})/i, 'https://pbs.twimg.com/media/$3')],
-  [[/imagevenue.com/],
+  [
+    [/https?:\/\/nitter\.(.{1,20})\/pic\/(orig\/)?media%2F(.{1,15})/i],
+    url => url.replace(/https?:\/\/nitter\.(.{1,20})\/pic\/(orig\/)?media%2F(.{1,15})/i, 'https://pbs.twimg.com/media/$3'),
+  ],
+  [
+    [/imagevenue.com/],
     async (url, http) => {
       const { dom } = await http.get(url);
       return dom.querySelector('.col-md-12 > a > img').getAttribute('src');
     },
   ],
-  [[/(postimg|pixxxels).cc/],
+  [
+    [/(postimg|pixxxels).cc/],
     async (url, http) => {
       url = url.replace(/https?:\/\/(www.)?i\.?(postimg|pixxxels).cc\/(.{8})(.*)/, 'https://postimg.cc/$3');
       const { dom } = await http.get(url);
@@ -1459,7 +1489,7 @@ const resolvers = [
     },
   ],
   [
-    [/(stream|cdn(\d+)?|i(\d+)?).bunkr.ru\/(v\/)?/, /:!bunkr.ru\/a\//],
+    [/(stream|cdn(\d+)?|i(\d+)?).bunkr.ru\/(v\/)?/i, /:!bunkr.ru\/a\//],
     async (url, http) => {
       url = /(\.zip|\.pdf)/i.test(url) ? url.replace(/cdn\d+/, 'files') : url;
 
@@ -1485,7 +1515,7 @@ const resolvers = [
           return `${__NEXT_DATA__.props.pageProps.file.mediafiles}/${__NEXT_DATA__.props.pageProps.file.name}`;
         }
 
-        const filename = h.basename(url).replace('&amp;', '&');
+        const filename = h.basename(url).replace(/&amp;/g, '&');
         const apiUrl = `https://stream.bunkr.ru/_next/data/${buildId}/v/${filename}.json`;
 
         const { source: apiSource } = await http.get(apiUrl);
@@ -1809,6 +1839,9 @@ const resolvers = [
     },
   ],
   [[/([~an@]+\.)?saint.to\/videos/], async url => url],
+  [[/public.onlyfans.com\/files/], async url => url],
+  [[/dailystar.co.uk\//], async url => url],
+  [[/pinuderest.com\//], async url => url],
   [
     [/saint.to\/embed/],
     async (url, http) => {
@@ -1822,7 +1855,7 @@ const resolvers = [
       const id = url.split('/').reverse()[0];
       url = `https://api.redgifs.com/v2/gifs/${id}`;
       const token = GM_getValue('redgifs_token', null);
-      const { source } = await http.get(url, {}, { 'Authorization': `Bearer ${token}` });
+      const { source } = await http.get(url, {}, { Authorization: `Bearer ${token}` });
       if (h.contains('urls', source)) {
         const urls = JSON.parse(source).gif.urls;
         if (urls.hd) {
@@ -1977,7 +2010,7 @@ const resolvers = [
   [
     [/gfycat.com(\/|\\\/)/],
     async (url, http) => {
-      url = `https://gfycat.com/${url.replace('&amp;', '&').split('/').reverse()[0].replace(/\?.*/is, '')}?hd=1`;
+      url = `https://gfycat.com/${url.replace(/&amp;/g, '&').split('/').reverse()[0].replace(/\?.*/is, '')}?hd=1`;
       const { dom } = await http.get(url);
       return [...dom.querySelectorAll('source')].map(el => el.getAttribute('src')).filter(src => src && h.contains('giant.gfycat', src))[0];
     },
@@ -2056,7 +2089,10 @@ const resolvers = [
     },
   ],
   [[/\w+\.imgur.(com|io)/], url => url],
-  [[/twimg.com\//], url => url.replace(/https?:\/\/pbs.twimg\.com\/media\/(.{1,15})(\?format=)?(.*)&amp;name=(.*)/, 'https://pbs.twimg.com/media/$1.$3')],
+  [
+    [/twimg.com\//],
+    url => url.replace(/https?:\/\/pbs.twimg\.com\/media\/(.{1,15})(\?format=)?(.*)&amp;name=(.*)/, 'https://pbs.twimg.com/media/$1.$3'),
+  ],
   [
     [/(disk\.)?yandex\.[a-z]+/],
     async (url, http) => {
@@ -2203,7 +2239,7 @@ const resolvers = [
       }
     },
   ],
-  [[/(\w+)?.redd.it/], url => url],
+  [[/(\w+)?.redd.it/], url => url.replace(/&amp;/g, '&')],
 ];
 
 const setProcessing = (isProcessing, postId) => {
@@ -2216,7 +2252,7 @@ const setProcessing = (isProcessing, postId) => {
 };
 
 const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, getSettingsCB, statusUI, callbacks = {}) => {
-  const { postId, postNumber, pageNumber } = parsedPost;
+  const { postId, postNumber } = parsedPost;
 
   const postSettings = getSettingsCB();
 
@@ -2375,34 +2411,66 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
 
   if (postSettings.skipDuplicates) {
     const unique = [];
-        for (const r of resolved.filter(r => r.url).sort((a, b) => (a.host.type !== 'folder' || b.host.type !== 'folder' ? -1 : 1))) {
-            const filename = h.basename(r.url);
-            if (unique.find(u => u.filename.toLowerCase() === filename.toLowerCase())) {
-                log.post.info(postId, `::Skipped duplicate::: ${filename} ::from:: ${r.url}`, postNumber);
-                continue;
-            }
-            unique.push({ ...r, filename });
-        }
+    for (const r of resolved.filter(r => r.url).sort((a, b) => (a.host.type !== 'folder' || b.host.type !== 'folder' ? -1 : 1))) {
+      const filename = h.basename(r.url);
+      if (unique.find(u => u.filename.toLowerCase() === filename.toLowerCase())) {
+        log.post.info(postId, `::Skipped duplicate::: ${filename} ::from:: ${r.url}`, postNumber);
+        continue;
+      }
+      unique.push({ ...r, filename });
+    }
 
-        if (unique.length !== resolved.length) {
-            h.ui.setText(statusLabel, `Removed ${resolved.length - unique.length} duplicates...`);
-            unique.forEach(u => delete u.filename);
-            resolved = unique;
-            totalDownloadable = resolved.length;
-        }
+    if (unique.length !== resolved.length) {
+      h.ui.setText(statusLabel, `Removed ${resolved.length - unique.length} duplicates...`);
+      unique.forEach(u => delete u.filename);
+      resolved = unique;
+      totalDownloadable = resolved.length;
+    }
   }
 
-  if (!postSettings.skipDownload) {
-    for (const { url, host, folderName } of resolved.filter(r => r.url)) {
-      h.ui.setElProps(statusLabel, { fontWeight: 'normal' });
-      const ellipsedUrl = h.limit(url, 80);
+  const isFF = window.isFF;
 
-      log.post.info(postId, `::Downloading::: ${url}`, postNumber);
-      // noinspection ES6MissingAwait
-      h.http.get(
-        url,
-        {
-          onStateChange: response => {
+  if (!postSettings.skipDownload) {
+    const resources = resolved.filter(r => r.url);
+    totalDownloadable = resources.length;
+
+    const batchLength = 2;
+
+    let currentBatch = 0;
+
+    const batches = [];
+
+    for (let i = 0; i < totalDownloadable; i += batchLength) {
+      batches.push(resources.slice(i, i + batchLength));
+    }
+
+    const getNextBatch = () => {
+      const batch = currentBatch < batches.length ? batches[currentBatch] : [];
+      currentBatch++;
+      return batch;
+    };
+
+    const requestProgress = [];
+
+    const requests = [];
+
+    let completedBatchedDownloads = 0;
+
+    let batch = getNextBatch();
+
+    while (batch.length) {
+      for (const { url, host, original, folderName } of batch) {
+        h.ui.setElProps(statusLabel, { fontWeight: 'normal' });
+        const ellipsedUrl = h.limit(url, 80);
+
+        log.post.info(postId, `::Downloading::: ${url}`, postNumber);
+        const request = GM_xmlhttpRequest({
+          url,
+          headers: {
+            Referer: original,
+          },
+          responseType: 'blob',
+          onreadystatechange: response => {
             if (response.readyState === 2) {
               let matches = h.re.matchAll(/(?<=attachment;filename=").*?(?=")/gis, response.responseHeaders);
               if (matches.length && !filenames.find(f => f.url === url)) {
@@ -2414,8 +2482,7 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
               }
             }
           },
-          onProgress: response => {
-            callbacks && callbacks.onFileDownloadProgress && callbacks.onFileDownloadProgress({ response, url, totalCompleted: completed });
+          onprogress: response => {
             h.ui.setElProps(statusLabel, {
               color: '#469cf3',
             });
@@ -2434,10 +2501,16 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
                 width: `${(response.loaded / response.total) * 100}%`,
               });
             }
+            const p = requestProgress.find(r => r.url === url);
+            p.new = response.loaded;
           },
-          onLoad: response => {
+          onload: response => {
             completed++;
-            callbacks && callbacks.onFileDownloaded && callbacks.onFileDownloaded({ response, url, totalCompleted: completed });
+            completedBatchedDownloads++;
+
+            const p = requestProgress.find(r => r.url === url);
+            clearInterval(p.intervalId);
+
             h.ui.setText(statusLabel, `${completed} / ${totalDownloadable} 🢒 ${ellipsedUrl}`);
             h.ui.setElProps(statusLabel, { color: '#2d9053' });
             h.ui.setElProps(totalPB, {
@@ -2449,15 +2522,19 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
 
             let basename;
 
-            if (url.includes('https://pixeldrain.com/')){
-                basename = response.responseHeaders.match(/^content-disposition.+(?:filename=)(.+)$/mi)[1].replace(/\"/g, '');
-            } else if (url.includes('https://simpcity.su/attachments/')){
-                basename = filename ? filename.name : h.basename(url).replace(/(.*)-(.{3,4})\.\d*$/i, '$1.$2');
-            } else if (url.includes('kemono.party')){
-                basename = filename ? filename.name : h.basename(url).replace(/(.*)\?f=(.*)/, '$2').replace('%20', ' ');
-            }
-              else{
-                basename = filename ? filename.name : h.basename(url).replace(/\?.*/, '').replace(/#.*/, '');
+            if (url.includes('https://pixeldrain.com/')) {
+              basename = response.responseHeaders.match(/^content-disposition.+(?:filename=)(.+)$/im)[1].replace(/\"/g, '');
+            } else if (url.includes('https://simpcity.su/attachments/')) {
+              basename = filename ? filename.name : h.basename(url).replace(/(.*)-(.{3,4})\.\d*$/i, '$1.$2');
+            } else if (url.includes('kemono.party')) {
+              basename = filename
+                ? filename.name
+                : h
+                    .basename(url)
+                    .replace(/(.*)\?f=(.*)/, '$2')
+                    .replace('%20', ' ');
+            } else {
+              basename = filename ? filename.name : h.basename(url).replace(/\?.*/, '').replace(/#.*/, '');
             }
 
             let ext = h.ext(basename);
@@ -2489,10 +2566,6 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
               filenames.push({ url, name: basename, original });
             }
 
-            if (totalDownloadable === 1 && customFilename) {
-              basename = customFilename;
-            }
-
             const folder = folderName || '';
 
             let fn = basename;
@@ -2510,32 +2583,86 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
               log.post.info(postId, `::Saving as::: ${basename}`, postNumber);
             }
 
-            zip.file(fn, response.response);
-          },
-          onError: () => {
-            completed++;
-          },
-        },
-        {},
-        'blob',
-      );
-    }
+            let blob = URL.createObjectURL(response.response);
 
-    while (completed < totalDownloadable) {
-      await h.delayedResolve(1000);
+            let title = threadTitle.replace(/[\\\/]/g, settings.naming.invalidCharSubstitute);
+
+            // https://stackoverflow.com/a/53681022
+            fn = fn.replace(/[\x00-\x08\x0E-\x1F\x7F-\uFFFF]/g, '');
+
+            if (!isFF) {
+              fn = `#${postNumber}/${fn}`;
+            }
+
+            const saveAs = `${title}/${fn}`;
+
+            if (!isFF) {
+              GM_download({
+                url: blob,
+                name: saveAs,
+                onload: () => {
+                  URL.revokeObjectURL(blob);
+                  blob = null;
+                },
+                onerror: response => {
+                  console.log(`Error writing file ${fn} to disk. There may be more details below.`);
+                  console.log(response);
+                },
+              });
+            } else {
+              zip.file(fn, response.response);
+            }
+          },
+          onerror: () => {
+            completed++;
+            completedBatchedDownloads++;
+          },
+        });
+
+        requests.push({ url, request });
+
+        const intervalId = setInterval(() => {
+          const p = requestProgress.find(r => r.url === url);
+          if (p.old === p.new) {
+            const r = requests.find(r => r.url === url);
+            r.request.abort();
+            clearInterval(p.intervalId);
+            completed++;
+            completedBatchedDownloads++;
+          } else {
+            p.old = p.new;
+          }
+        }, 30000);
+
+        requestProgress.push({ url, intervalId, old: 0, new: 0 });
+      }
+
+      while (completedBatchedDownloads < batch.length) {
+        await h.delayedResolve(1000);
+      }
+
+      if (completedBatchedDownloads >= batch.length) {
+        completedBatchedDownloads = 0;
+      }
+
+      batch = getNextBatch();
     }
   } else {
     log.post.info(postId, '::Skipping download::', postNumber);
   }
 
+  h.hide(statusLabel);
+  h.hide(filePB);
+  h.hide(totalPB);
+  window.logs = window.logs.filter(l => l.postId !== postId);
+
+  if (!isFF) {
+    setProcessing(false, postId);
+  }
+
   if (totalDownloadable > 0) {
     let title = threadTitle.replace(/[\\\/]/g, settings.naming.invalidCharSubstitute);
-
-    // https://stackoverflow.com/a/9851769
-    // Will be deprecated in the future according to FF.
-    const isFF = typeof InstallTrigger !== 'undefined';
-
-    const filename = customFilename || (isFF ? `${title} #${postNumber}.zip` : `#${postNumber}.zip`);
+    const filename = customFilename || `${title} #${postNumber}.zip`;
 
     log.separator(postId);
     log.post.info(postId, `::Preparing zip::`, postNumber);
@@ -2543,7 +2670,7 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
     if (postSettings.generateLog) {
       log.post.info(postId, `::Generating log file::`, postNumber);
       zip.file(
-        'generated/log.txt',
+        isFF ? 'generated/log.txt' : 'log.txt',
         logs
           .filter(l => l.postId === postId)
           .map(l => l.message)
@@ -2554,7 +2681,7 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
     if (postSettings.generateLinks) {
       log.post.info(postId, `::Generating links::`, postNumber);
       zip.file(
-        'generated/links.txt',
+        isFF ? 'generated/links.txt' : 'links.txt',
         resolved
           .filter(r => r.url)
           .map(r => r.url)
@@ -2563,38 +2690,32 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
     }
 
     let blob = await zip.generateAsync({ type: 'blob' });
-    const url = URL.createObjectURL(blob);
 
     if (isFF) {
-      // Firefox won't save in a custom dir.
       saveAs(blob, filename);
+      setProcessing(false, postId);
     } else {
+      let url = URL.createObjectURL(blob);
       GM_download({
         url,
-        name: `${title}/${filename}`,
+        name: `${title}/#${postNumber}/generated.zip`,
         onload: () => {
           URL.revokeObjectURL(url);
           blob = null;
         },
         onerror: response => {
-          console.log('Error downloading the requested post. There may be more details below.');
+          console.log(`Error writing file ${fn} to disk. There may be more details below.`);
           console.log(response);
         },
       });
     }
-
-    setProcessing(false, postId);
   } else {
     setProcessing(false, postId);
   }
 
-  h.hide(statusLabel);
-  h.hide(filePB);
-  h.hide(totalPB);
-
   if (totalDownloadable > 0) {
     // For logging in console since post logs are already written.
-    if (postSettings.skipDownload) {
+    if (!postSettings.skipDownload) {
       log.post.info(postId, `::Download completed::`, postNumber);
     } else {
       log.post.info(postId, `::Links generation completed::`, postNumber);
@@ -2602,9 +2723,6 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
 
     callbacks && callbacks.onComplete && callbacks.onComplete(totalDownloadable, completed);
   }
-
-  // TODO: Fix this filth.
-  window.logs = window.logs.filter(l => l.postId !== postId);
 };
 
 /**
@@ -2691,6 +2809,7 @@ const selectedPosts = [];
       return message;
     }
   });
+
   document.addEventListener('DOMContentLoaded', async () => {
     const goFileTokenFetchFailedErr = 'Failed to create GoFile token. GoFile albums may not work. Refresh the browser to retry.';
 
@@ -2717,17 +2836,13 @@ const selectedPosts = [];
     }
 
     try {
-      let redGifsToken = GM_getValue('regifs_token', null);
-
-      if (!redGifsToken) {
-        const { source } = await h.http.get('https://api.redgifs.com/v2/auth/temporary');
-        if (h.contains('token', source)) {
-          const token = JSON.parse(source).token;
-          GM_setValue('redgifs_token', token);
-        }
+      const { source } = await h.http.get('https://api.redgifs.com/v2/auth/temporary');
+      if (h.contains('token', source)) {
+        const token = JSON.parse(source).token;
+        GM_setValue('redgifs_token', token);
       }
     } catch (e) {
-      console.error("Error getting temporary redgifs auth token:");
+      console.error('Error getting temporary redgifs auth token:');
       console.error(e);
     }
 
@@ -2764,8 +2879,9 @@ const selectedPosts = [];
 
       // Create and attach the download button to post.
       const { btn: btnDownloadPost } = ui.buttons.addDownloadPostButton(post);
+      const totalResources = parsedHosts.reduce((acc, host) => acc + host.resources.length, 0);
       const checkedLength = getTotalDownloadableResourcesForPostCB(parsedHosts);
-      btnDownloadPost.innerHTML = `🡳 Download (${checkedLength})`;
+      btnDownloadPost.innerHTML = `🡳 Download (${checkedLength}/${totalResources})`;
 
       // Create download status / progress elements.
       const { el: statusText } = ui.labels.status.createStatusLabel();

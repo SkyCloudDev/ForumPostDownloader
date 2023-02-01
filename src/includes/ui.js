@@ -311,21 +311,6 @@ const ui = {
           `;
         },
         /**
-         * @returns {string}
-         */
-        createNoSelectionWarningLabel: () => {
-          return `
-          <div class="menu-row" style="margin-top: -3px; display: none;" id="no-selection-warning">
-            <p style="color: #fa3e3e; margin: 0; font-weight: bold;">
-                <img alt="" style="width: 24px; height: 24px; padding-right: 2px;" src="https://cdn.betterttv.net/emote/5e3b01ce751afe7d553d4292/3x" />
-                <span style="position: absolute; margin-top: 5px; margin-left: 5px;">
-                    No files selected for downloading
-                 </span>
-            </p>
-          </div>
-          `;
-        },
-        /**
          * @param parsedPost
          * @param parsedHosts
          * @param defaultFilename
@@ -356,36 +341,47 @@ const ui = {
 
           ui.forms.config.post.createFlattenCheckbox(postId, settings.flatten);
 
+          const settingsHeading = `
+          <div class="menu-row">
+            <div style="font-weight: bold; margin-top:3px; margin-bottom: 4px; color: dodgerblue;">
+                Settings
+            </div>
+          </div>
+          `;
+
           let formHtml = [
-            ui.forms.config.post.createFilenameInput(customFilename, postId, color, defaultFilename),
+            window.isFF ? ui.forms.config.post.createFilenameInput(customFilename, postId, color, defaultFilename) : null,
+            settingsHeading,
             ui.forms.config.post.createFlattenCheckbox(postId, settings.flatten),
             ui.forms.config.post.createSkipDuplicatesCheckbox(postId, settings.skipDuplicates),
             ui.forms.config.post.createGenerateLinksCheckbox(postId, settings.generateLinks),
             ui.forms.config.post.createGenerateLogCheckbox(postId, settings.generateLog),
             ui.forms.config.post.createSkipDownloadCheckbox(postId, settings.skipDownload),
             ui.forms.config.post.createHostCheckboxes(postId, filterLabel, hostsHtml, parsedHosts.length > 1),
-            ui.forms.config.post.createNoSelectionWarningLabel(),
             ui.forms.createRow(
               '<a href="#download-page" style="color: dodgerblue; font-weight: bold"><i class="fa fa-arrow-up"></i> Show Download Page Button</a>',
             ),
-          ];
+          ].filter(c => c !== null);
 
           const configForm = ui.forms.config.post.createForm(postId, color, formHtml.join(''));
 
           ui.tooltip(btnDownloadPost, configForm, {
             onShown: instance => {
-              h.element(`#filename-input-${postId}`).addEventListener('input', e => {
-                const value = e.target.value;
-                const o = settings.output.find(o => o.postId === postId);
-                if (o) {
-                  o.value = value;
-                } else {
-                  settings.output.push({
-                    postId,
-                    value,
-                  });
-                }
-              });
+              const inputEl = h.element(`#filename-input-${postId}`);
+              if (inputEl) {
+                inputEl.addEventListener('input', e => {
+                  const value = e.target.value;
+                  const o = settings.output.find(o => o.postId === postId);
+                  if (o) {
+                    o.value = value;
+                  } else {
+                    settings.output.push({
+                      postId,
+                      value,
+                    });
+                  }
+                });
+              }
 
               let prevSettings = JSON.parse(JSON.stringify(settings));
 
@@ -478,32 +474,31 @@ const ui = {
                   host.enabled = e.target.checked;
                   const filteredCount = totalDownloadableResourcesForPostCB(parsedHosts);
                   h.element('#filtered-count').textContent = `(${filteredCount})`;
-                  const warningLabel = h.element('#no-selection-warning');
-                  if (filteredCount < 1) {
-                    h.show(warningLabel);
-                  } else {
-                    h.hide(warningLabel);
-                  }
 
-                  if (parsedHosts.length > 1) {
+                  if (parsedHosts.length > 0) {
                     const checkedLength = parsedHosts
                       .flatMap(host => h.element(`#downloader-host-${host.id}-${postId}`))
                       .filter(h => h.checked).length;
+
+                    const totalResources = parsedHosts
+                      .reduce((acc, host) => acc + host.resources.length, 0);
 
                     const totalDownloadableResources = parsedHosts
                       .filter(host => host.enabled && host.resources.length)
                       .reduce((acc, host) => acc + host.resources.length, 0);
 
-                    btnDownloadPost.innerHTML = `🡳 Download (${totalDownloadableResources})`;
+                    btnDownloadPost.innerHTML = `🡳 Download (${totalDownloadableResources}/${totalResources})`;
 
-                    const toggleAllHostsCheckbox = h.element(`#settings-toggle-all-hosts-${postId}`);
+                    if (parsedHosts.length > 1) {
+                      const toggleAllHostsCheckbox = h.element(`#settings-toggle-all-hosts-${postId}`);
 
-                    if (checkedLength !== parsedHosts.length) {
-                      toggleAllHostsCheckbox.removeAttribute('checked');
-                      toggleAllHostsCheckbox.checked = false;
-                    } else {
-                      toggleAllHostsCheckbox.setAttribute('checked', 'checked');
-                      toggleAllHostsCheckbox.checked = true;
+                      if (checkedLength !== parsedHosts.length) {
+                        toggleAllHostsCheckbox.removeAttribute('checked');
+                        toggleAllHostsCheckbox.checked = false;
+                      } else {
+                        toggleAllHostsCheckbox.setAttribute('checked', 'checked');
+                        toggleAllHostsCheckbox.checked = true;
+                      }
                     }
                   }
                 });

@@ -4,10 +4,11 @@
 // @namespace https://github.com/SkyCloudDev
 // @author SkyCloudDev
 // @author x111000111
+// @author backwards
 // @description Downloads images and videos from posts
-// @version 2.2.6
-// @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.js
-// @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.js
+// @version 2.3.3
+// @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
+// @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.jpg.church/simpcityIcon192.png
 // @license WTFPL; http://www.wtfpl.net/txt/copying/
 // @match https://simpcity.su/threads/*
@@ -20,16 +21,21 @@
 // @connect anonfiles.com
 // @connect box.com
 // @connect boxcloud.com
+// @connect kemono.party
 // @connect github.com
-// @connect bunkr.is
+// @connect bunkr.ru
+// @connect bunkr.la
 // @connect cyberdrop.me
 // @connect cyberdrop.cc
 // @connect cyberdrop.nl
 // @connect cyberdrop.to
-// @connect cyberfile.is
+// @connect cyberfile.su
 // @connect saint.to
 // @connect sendvid.com
-// @connect i.redd.it
+// @connect redd.it
+// @connect dailystar.co.uk
+// @connect pinuderest.com
+// @connect onlyfans.com
 // @connect i.ibb.co
 // @connect ibb.co
 // @connect imagebam.com
@@ -38,7 +44,9 @@
 // @connect imgbox.com
 // @connect pixhost.to
 // @connect pixl.is
+// @connect pixl.li
 // @connect pornhub.com
+// @connect postimg.cc
 // @connect img.kiwi
 // @connect instagram.com
 // @connect cdninstagram.com
