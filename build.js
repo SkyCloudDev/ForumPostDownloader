@@ -1,6 +1,6 @@
 const fs = require('fs');
 
-const getContents = path => require('child_process').execSync(`cat ${path}`).toString('utf-8');
+const getContents = path => require('child_process').execSync(`cat ${path}`).toString();
 
 const header = getContents('./src/header.js');
 
@@ -16,4 +16,4 @@ if (!fs.existsSync('./dist')) {
 
 const data = header + includes + main;
 
-fs.writeFileSync('dist/build.js', data);
+fs.writeFileSync('dist/build.user.js', data);

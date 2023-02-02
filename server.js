@@ -4,7 +4,7 @@ const app = express();
 const port = 3000;
 
 app.get('/', (req, res) => {
-  res.send(fs.readFileSync('./dist/build.js').toString('utf-8'));
+  res.send(fs.readFileSync('./dist/build.user.js').toString());
 });
 
 app.listen(port, () => {

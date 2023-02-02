@@ -29,7 +29,7 @@ This Tampermonkey script allows for downloading individual posts and pages from 
 ##  Installation
 1. Install the Tampermonkey browser extension: [Chrome](https://chrome.google.com/webstore/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo?hl=en) [Firefox](https://addons.mozilla.org/en-US/firefox/addon/tampermonkey/) [Brave](https://chrome.google.com/webstore/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo?hl=en)
 2. **Important:** Under the tampermonkey settings, set the **Config mode** to **Advanced** and enable the **Browser API** in **Download Mode (BETA)**.
-3. Copy the contents of [https://github.com/SkyCloudDev/ForumPostDownloader/blob/main/dist/build.js](https://github.com/SkyCloudDev/ForumPostDownloader/blob/main/dist/build.js)
+3. Copy the contents of [https://github.com/SkyCloudDev/ForumPostDownloader/blob/main/dist/build.user.js](https://github.com/SkyCloudDev/ForumPostDownloader/blob/main/dist/build.user.js)
 4. Create a new Tampermonkey script and paste the contents you copied in step 3 (build.js).
 5. Save the script (Ctrl+S).
 6. Visit any thread to verify the script installation.

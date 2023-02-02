@@ -28,9 +28,18 @@ const parsers = {
       // 2. CodeBlock headers
       // 3. Spoiler button text from each spoiler
       // 2. Icons from un-furled urls (url parser can sometimes match them).
-      ['.js-unfurl-figure', '.js-unfurl-favicon', '.bbCodeBlock-title', 'blockquote', '.button-text > span']
+      ['.js-unfurl-figure', '.js-unfurl-favicon', 'blockquote', '.button-text > span']
         .flatMap(i => [...messageContentClone.querySelectorAll(i)])
-        .forEach(i => i.remove());
+        .forEach(i => {
+          if (i.tagName === 'BLOCKQUOTE') {
+            // Only remove blockquotes that quote the other posts.
+            if (i.querySelector('.bbCodeBlock-title')) {
+              i.remove();
+            }
+          } else {
+            i.remove();
+          }
+        });
 
       // Remove thread links.
       [...messageContentClone.querySelectorAll('.contentRow-header > a[href^="https://simpcity.su/threads"]')]
