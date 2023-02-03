@@ -6,7 +6,7 @@
 // @author x111000111
 // @author backwards
 // @description Downloads images and videos from posts
-// @version 2.3.6
+// @version 2.3.7
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.jpg.church/simpcityIcon192.png
@@ -24,6 +24,7 @@
 // @connect kemono.party
 // @connect github.com
 // @connect bunkr.ru
+// @connect bunkr.su
 // @connect bunkr.la
 // @connect cyberdrop.me
 // @connect cyberdrop.cc
@@ -1310,8 +1311,8 @@ const hosts = [
   ['redgifs.com:video', [/!!redgifs.com(\/|\\\/)ifr.*?(?="|&quot;)/]],
   ['gfycat.com:video', [/!!gfycat.com(\/|\\\/)ifr.*?(?="|&quot;)/]],
   [
-    'bunkr.ru:',
-    [/!!(?<=href=")https:\/\/(stream|cdn(\d+)?).*?(?=")|(?<=(href="|src="))https:\/\/i(\d+)?.bunkr.ru\/(v\/)?.*?(?=")/, /bunkr.ru\/a\//],
+    'bunkr.ru|su:',
+    [/!!(?<=href=")https:\/\/(stream|cdn(\d+)?).*?(?=")|(?<=(href="|src="))https:\/\/i(\d+)?.bunkr.(ru|su)\/(v\/)?.*?(?=")/, /bunkr.(ru|su)\/a\//],
   ],
   ['give.xxx:profile', [/give.xxx\/[~an@_-]+/]],
   ['zippyshare.com:', [/(\w+\.)?zippyshare.com\/v\//]],
@@ -1504,7 +1505,7 @@ const resolvers = [
     },
   ],
   [
-    [/(stream|cdn(\d+)?|i(\d+)?).bunkr.ru\/(v\/)?/i, /:!bunkr.ru\/a\//],
+    [/(stream|cdn(\d+)?|i(\d+)?).bunkr.(ru|su)\/(v\/)?/i, /:!bunkr.(ru|su)\/a\//],
     async (url, http) => {
       url = /(\.zip|\.pdf)/i.test(url) ? url.replace(/cdn\d+/, 'files') : url;
 
@@ -1531,7 +1532,7 @@ const resolvers = [
         }
 
         const filename = h.basename(url).replace(/&amp;/g, '&');
-        const apiUrl = `https://stream.bunkr.ru/_next/data/${buildId}/v/${filename}.json`;
+        const apiUrl = `https://stream.bunkr.su/_next/data/${buildId}/v/${filename}.json`;
 
         const { source: apiSource } = await http.get(apiUrl);
 
@@ -1548,7 +1549,7 @@ const resolvers = [
     },
   ],
   [
-    [/bunkr.ru\/a\//],
+    [/bunkr.(ru|su)\/a\//],
     async (url, http) => {
       const { source, dom } = await http.get(url);
 
