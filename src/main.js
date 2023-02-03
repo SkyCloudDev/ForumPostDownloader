@@ -1512,6 +1512,10 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
   h.hide(filePB);
   h.hide(totalPB);
 
+  if (!isFF) {
+    setProcessing(false, postId);
+  }
+
   if (totalDownloadable > 0) {
     let title = threadTitle.replace(/[\\\/]/g, settings.naming.invalidCharSubstitute);
     const filename = customFilename || `${title} #${postNumber}.zip`;
