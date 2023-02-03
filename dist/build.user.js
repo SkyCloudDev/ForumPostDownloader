@@ -1311,7 +1311,7 @@ const hosts = [
   ['redgifs.com:video', [/!!redgifs.com(\/|\\\/)ifr.*?(?="|&quot;)/]],
   ['gfycat.com:video', [/!!gfycat.com(\/|\\\/)ifr.*?(?="|&quot;)/]],
   [
-    'bunkr.ru|su:',
+    'bunkr.su:',
     [/!!(?<=href=")https:\/\/(stream|cdn(\d+)?).*?(?=")|(?<=(href="|src="))https:\/\/i(\d+)?.bunkr.(ru|su)\/(v\/)?.*?(?=")/, /bunkr.(ru|su)\/a\//],
   ],
   ['give.xxx:profile', [/give.xxx\/[~an@_-]+/]],
@@ -2747,7 +2747,7 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
   if (!isFF) {
     setProcessing(false, postId);
   }
-  
+
   if (totalDownloadable > 0) {
     let title = threadTitle.replace(/[\\\/]/g, settings.naming.invalidCharSubstitute);
     const filename = customFilename || `${title} #${postNumber}.zip`;
