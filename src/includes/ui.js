@@ -239,6 +239,12 @@ const ui = {
         /**
          * @returns {string}
          */
+        createZippedCheckbox: (postId, checked) => {
+          return ui.forms.createCheckbox(`settings-${postId}-zipped`, 'Zipped', checked);
+        },
+        /**
+         * @returns {string}
+         */
         createFlattenCheckbox: (postId, checked) => {
           return ui.forms.createCheckbox(`settings-${postId}-flatten`, 'Flatten', checked);
         },
@@ -339,8 +345,6 @@ const ui = {
 
           const filterLabel = ui.forms.config.post.createFilterLabel(parsedHosts, totalDownloadableResourcesForPostCB);
 
-          ui.forms.config.post.createFlattenCheckbox(postId, settings.flatten);
-
           const settingsHeading = `
           <div class="menu-row">
             <div style="font-weight: bold; margin-top:3px; margin-bottom: 4px; color: dodgerblue;">
@@ -352,6 +356,7 @@ const ui = {
           let formHtml = [
             window.isFF ? ui.forms.config.post.createFilenameInput(customFilename, postId, color, defaultFilename) : null,
             settingsHeading,
+            !window.isFF ? ui.forms.config.post.createZippedCheckbox(postId, settings.zipped) : null,
             ui.forms.config.post.createFlattenCheckbox(postId, settings.flatten),
             ui.forms.config.post.createSkipDuplicatesCheckbox(postId, settings.skipDuplicates),
             ui.forms.config.post.createGenerateLinksCheckbox(postId, settings.generateLinks),
@@ -413,6 +418,12 @@ const ui = {
 
                 setTimeout(() => (updateSettings = true), 100);
               });
+
+              if (!window.isFF) {
+                h.element(`#settings-${postId}-zipped`).addEventListener('change', e => {
+                  settings.zipped = e.target.checked;
+                });
+              }
 
               h.element(`#settings-${postId}-generate-links`).addEventListener('change', e => {
                 settings.generateLinks = e.target.checked;

@@ -6,7 +6,7 @@
 // @author x111000111
 // @author backwards
 // @description Downloads images and videos from posts
-// @version 2.3.5
+// @version 2.3.6
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.jpg.church/simpcityIcon192.png
@@ -69,6 +69,8 @@
 // @connect gofile.io
 // @connect phncdn.com
 // @connect xvideos.com
+// @connect give.xxx
+// @connect zippyshare.com
 // @connect githubusercontent.com
 // @run-at document-start
 // @grant GM_xmlhttpRequest
@@ -924,6 +926,12 @@ const ui = {
         /**
          * @returns {string}
          */
+        createZippedCheckbox: (postId, checked) => {
+          return ui.forms.createCheckbox(`settings-${postId}-zipped`, 'Zipped', checked);
+        },
+        /**
+         * @returns {string}
+         */
         createFlattenCheckbox: (postId, checked) => {
           return ui.forms.createCheckbox(`settings-${postId}-flatten`, 'Flatten', checked);
         },
@@ -1024,8 +1032,6 @@ const ui = {
 
           const filterLabel = ui.forms.config.post.createFilterLabel(parsedHosts, totalDownloadableResourcesForPostCB);
 
-          ui.forms.config.post.createFlattenCheckbox(postId, settings.flatten);
-
           const settingsHeading = `
           <div class="menu-row">
             <div style="font-weight: bold; margin-top:3px; margin-bottom: 4px; color: dodgerblue;">
@@ -1037,6 +1043,7 @@ const ui = {
           let formHtml = [
             window.isFF ? ui.forms.config.post.createFilenameInput(customFilename, postId, color, defaultFilename) : null,
             settingsHeading,
+            !window.isFF ? ui.forms.config.post.createZippedCheckbox(postId, settings.zipped) : null,
             ui.forms.config.post.createFlattenCheckbox(postId, settings.flatten),
             ui.forms.config.post.createSkipDuplicatesCheckbox(postId, settings.skipDuplicates),
             ui.forms.config.post.createGenerateLinksCheckbox(postId, settings.generateLinks),
@@ -1098,6 +1105,12 @@ const ui = {
 
                 setTimeout(() => (updateSettings = true), 100);
               });
+
+              if (!window.isFF) {
+                h.element(`#settings-${postId}-zipped`).addEventListener('change', e => {
+                  settings.zipped = e.target.checked;
+                });
+              }
 
               h.element(`#settings-${postId}-generate-links`).addEventListener('change', e => {
                 settings.generateLinks = e.target.checked;
@@ -1300,6 +1313,8 @@ const hosts = [
     'bunkr.ru:',
     [/!!(?<=href=")https:\/\/(stream|cdn(\d+)?).*?(?=")|(?<=(href="|src="))https:\/\/i(\d+)?.bunkr.ru\/(v\/)?.*?(?=")/, /bunkr.ru\/a\//],
   ],
+  ['give.xxx:profile', [/give.xxx\/[~an@_-]+/]],
+  ['zippyshare.com:', [/(\w+\.)?zippyshare.com\/v\//]],
   ['pixeldrain.com:', [/pixeldrain.com\/[lu]\//]],
   ['gofile.com:', [/gofile.io\/d/]],
   ['erome.com:', [/erome.com\/a\//]],
@@ -1554,6 +1569,70 @@ const resolvers = [
     },
   ],
   [
+    [/give.xxx\//],
+    async (url, http) => {
+      const { source, dom } = await http.get(url);
+      const profileId = h.re.match(/(?<=profile-id=")\d+/, source);
+
+      const resolved = [];
+
+      let username = null;
+
+      let firstMediaId = null;
+
+      let mediaId = 1;
+
+      let iteration = 1;
+
+      while (true) {
+        let endpoint = `https://give.xxx/api/web/v1/accounts/${profileId}/statuses?only_media=true`;
+        endpoint += iteration === 1 ? '&min_id=1' : `&max_id=${mediaId}`;
+        const { source } = await http.get(endpoint);
+        if (h.contains('_v', source)) {
+          const parsed = JSON.parse(source);
+
+          if (username === null) {
+            username = parsed[0].account.username;
+          }
+
+          if (firstMediaId === null) {
+            firstMediaId = parsed[0].id;
+          } else {
+            if (firstMediaId === parsed[0].id) {
+              break;
+            }
+          }
+          resolved.push(...parsed.flatMap((i) => {
+            return i.media_attachments.map((a) => {
+              return a.sizes;
+            }).map((s) => s.large || s.normal || s.small);
+          }));
+          mediaId = parsed[parsed.length - 1].id;
+        } else {
+          break;
+        }
+
+        iteration++;
+      }
+
+      return {
+        dom,
+        source,
+        folderName: username,
+        resolved,
+      };
+    },
+  ],
+  [
+    [/zippyshare.com\//],
+    async (url, http) => {
+      const { source } = await http.get(url);
+      const expr = h.re.match(/(?<=\('dlbutton'\).href\s=\s).*?(?=;)/i, source).replace(/"(.*?)"/g, `new String("$1")`).replace('\/', '\\\/');
+      const subDomain = h.re.match(/ww\w+/, url);
+      return `https://${subDomain}.zippyshare.com${eval(expr)}`;
+    },
+  ],
+  [
     [/pixeldrain.com\/[ul]/],
     url => {
       let resolved = url.replace('/u/', '/api/file/').replace('/l/', '/api/list/');
@@ -1562,6 +1641,7 @@ const resolvers = [
       return resolved;
     },
   ],
+
   [
     [/anonfiles.com\//],
     async (url, http) => {
@@ -2596,7 +2676,7 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
 
             const saveAs = `${title}/${fn}`;
 
-            if (!isFF) {
+            if (!isFF && !postSettings.zipped) {
               GM_download({
                 url: blob,
                 name: saveAs,
@@ -2609,7 +2689,9 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
                   console.log(response);
                 },
               });
-            } else {
+            }
+
+            if (isFF || postSettings.zipped) {
               zip.file(fn, response.response);
             }
           },
@@ -2627,8 +2709,14 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
             const r = requests.find(r => r.url === url);
             r.request.abort();
             clearInterval(p.intervalId);
-            completed++;
+            if (completed < totalDownloadable) {
+              completed++;
+            }
+
             completedBatchedDownloads++;
+            if (completedBatchedDownloads >= batch.length) {
+              completedBatchedDownloads = 0;
+            }
           } else {
             p.old = p.new;
           }
@@ -2654,10 +2742,6 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
   h.hide(statusLabel);
   h.hide(filePB);
   h.hide(totalPB);
-
-  if (!isFF) {
-    setProcessing(false, postId);
-  }
 
   if (totalDownloadable > 0) {
     let title = threadTitle.replace(/[\\\/]/g, settings.naming.invalidCharSubstitute);
@@ -2693,14 +2777,29 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
     if (isFF) {
       saveAs(blob, filename);
       setProcessing(false, postId);
-    } else {
+    }
+
+    if (!isFF && postSettings.zipped) {
+      GM_download({
+        url: URL.createObjectURL(blob),
+        name: `${title}/#${postNumber}.zip`,
+        onload: () => {
+          blob = null;
+        },
+        onerror: response => {
+          console.log(`Error writing file to disk. There may be more details below.`);
+          console.log(response);
+        },
+      });
+    }
+
+    if (!isFF && !postSettings.zipped) {
       if (postSettings.generateLog || postSettings.generateLinks) {
         let url = URL.createObjectURL(blob);
         GM_download({
           url,
           name: `${title}/#${postNumber}/generated.zip`,
           onload: () => {
-            URL.revokeObjectURL(url);
             blob = null;
           },
           onerror: response => {
@@ -2853,6 +2952,7 @@ const selectedPosts = [];
 
     h.elements('.message-attribution-opposite').forEach(post => {
       const settings = {
+        zipped: true,
         flatten: false,
         generateLinks: false,
         generateLog: false,
