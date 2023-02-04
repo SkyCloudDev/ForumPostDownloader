@@ -1341,8 +1341,6 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
           }
         };
 
-        console.log(r);
-
         if (h.isArray(r.resolved)) {
           r.resolved.forEach(url => addResolved(url, r.folderName));
         } else {
