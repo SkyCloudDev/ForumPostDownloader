@@ -1327,7 +1327,7 @@ const hosts = [
   ['erome.com:', [/erome.com\/a\//]],
   ['box.com:', [/m\.box\.com\//]],
   ['yandex.ru:', [/(disk\.)?yandex\.[a-z]+/]],
-  ['cyberfile.su:', [/!!https:\/\/cyberfile.su\/\w+(?=")/, /cyberfile.su\/folder\//]],
+  ['cyberfile.su:', [/!!https:\/\/cyberfile.su\/\w+(\/)?(?=")/, /cyberfile.su\/folder\//]],
   ['cyberdrop.me:', [/fs-\d+.cyberdrop.(me|to|cc|nl)\//, /cyberdrop.(me|to|cc|nl)\/a\//]],
   ['pornhub.com:video', [/([~an@]+\.)?pornhub.com\/view_video/]],
   ['noodlemagazine.com:video', [/(adult.)?noodlemagazine.com\/watch\//]],
@@ -3084,7 +3084,7 @@ const selectedPosts = [];
 
     h.elements('.message-attribution-opposite').forEach(post => {
       const settings = {
-        zipped: true,
+        zipped: false,
         flatten: false,
         generateLinks: false,
         generateLog: false,
