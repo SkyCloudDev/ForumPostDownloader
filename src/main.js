@@ -44,6 +44,8 @@ let processing = [];
 const hosts = [
   ['simpcity.su:Attachments', [/simpcity.su\/attachments/]],
   ['anonfiles.com:', [/anonfiles.com/]],
+  ['coomer.party:Profiles', [/coomer.party\/[~an@._-]+\/user/]],
+  ['coomer.party:image', [/(\w+\.)?coomer.party\/(data|thumbnail)/]],
   ['jpg.church:image', [/simp(\d+.)?jpg.church\/(?!(banner-c\.png|img\/))/, /jpg.church\/a\/[~an@-_.]+<no_qs>/]],
   ['kemono.party:direct link', [/.{2,6}\.kemono.party\/data\//]],
   ['postimg.cc:image', [/!!https?:\/\/(www.)?i\.?(postimg|pixxxels).cc\/(.{8})/]], //[/!!https?:\/\/(www.)?postimg.cc\/(.{8})/]],
@@ -80,9 +82,12 @@ const hosts = [
   ['gfycat.com:video', [/!!gfycat.com(\/|\\\/)ifr.*?(?="|&quot;)/]],
   [
     'bunkr.su:',
-    [/!!(?<=href=")https:\/\/(stream|cdn(\d+)?).*?(?=")|(?<=(href="|src="))https:\/\/i(\d+)?.bunkr.(ru|su)\/(v\/)?.*?(?=")/, /bunkr.(ru|su)\/a\//],
+    [
+      /!!(?<=href=")https:\/\/(stream|cdn(\d+)?).*?(?=")|(?<=(href="|src="))https:\/\/i(\d+)?.bunkr.(ru|su)\/(v\/)?.*?(?=")/,
+      /bunkr.(ru|su)\/a\//,
+    ],
   ],
-  ['give.xxx:profile', [/give.xxx\/[~an@_-]+/]],
+  ['give.xxx:Profiles', [/give.xxx\/[~an@_-]+/]],
   ['zippyshare.com:', [/(\w+\.)?zippyshare.com\/v\//]],
   ['pixeldrain.com:', [/pixeldrain.com\/[lu]\//]],
   ['gofile.com:', [/gofile.io\/d/]],
@@ -111,6 +116,109 @@ const resolvers = [
     async (url, http) => {
       const { dom } = await http.get(url);
       return dom.querySelector('.col-md-12 > a > img').getAttribute('src');
+    },
+  ],
+  [
+    [/coomer.party\/(data|thumbnail)/], url => url,
+  ],
+  [
+    [/coomer.party/, /:!coomer.party\/(data|thumbnail)/],
+    async (url, http) => {
+      const host = `https://coomer.party`;
+
+      const profileId = url.replace(/\?.*/, '').split('/').reverse()[0];
+
+      let finalURL = url.replace(/\?.*/, '');
+
+      let nextPage = null;
+
+      const posts = [];
+
+      console.log(`[coomer.party] Resolving profile: ${profileId}`);
+
+      let page = 1;
+
+      do {
+        const { dom } = await http.get(finalURL);
+
+        const links = [...dom.querySelectorAll('.card-list__items > article')]
+          .map(a => a.querySelector('.post-card__heading > a'))
+          .map(a => {
+            return {
+              link: `${host}${a.getAttribute('href')}`,
+              id: a.getAttribute('href').split('/').reverse()[0],
+            };
+          });
+
+        posts.push(...links);
+        nextPage = dom.querySelector('a[title="Next page"]');
+
+        if (nextPage) {
+          finalURL = `${host}${nextPage.getAttribute('href')}`;
+        }
+
+        console.log(`[coomer.party] Resolved page: ${page}`);
+
+        page++;
+      } while (nextPage);
+
+      const resolved = [];
+
+      let index = 1;
+
+      for (const post of posts) {
+        const { dom } = await http.get(post.link);
+        const filesContainer = dom.querySelector('.post__files');
+
+        if (filesContainer) {
+          const images = filesContainer.querySelectorAll('.post__thumbnail > .fileThumb');
+
+          if (images.length) {
+            resolved.push(
+              ...[...images].map(a => {
+                return {
+                  url: `${host}${a.getAttribute('href')}`,
+                  folderName: post.id,
+                };
+              }),
+            );
+          }
+        }
+
+        const attachments = dom.querySelectorAll('.post__attachments > .post__attachment > .post__attachment-link');
+
+        if (attachments.length) {
+          resolved.push(
+            ...[...attachments].map(a => {
+              const url = `${host}${a.getAttribute('href')}`;
+
+              let folder = 'Images';
+
+              const ext = h.ext(url.replace(/\?.*/, ''));
+
+              if (settings.extensions.video.includes(`.${ext.toLowerCase()}`)) {
+                folder = 'Videos';
+              }
+
+              {
+                return {
+                  url,
+                  folderName: `${post.id}/${folder}`,
+                };
+              }
+            }),
+          );
+        }
+
+        console.log(`[coomer.party] Resolved post ${index} / ${posts.length}`);
+
+        index++;
+      }
+
+      return {
+        folderName: profileId,
+        resolved,
+      };
     },
   ],
   [
@@ -371,11 +479,15 @@ const resolvers = [
               break;
             }
           }
-          resolved.push(...parsed.flatMap((i) => {
-            return i.media_attachments.map((a) => {
-              return a.sizes;
-            }).map((s) => s.large || s.normal || s.small);
-          }));
+          resolved.push(
+            ...parsed.flatMap(i => {
+              return i.media_attachments
+                .map(a => {
+                  return a.sizes;
+                })
+                .map(s => s.large || s.normal || s.small);
+            }),
+          );
           mediaId = parsed[parsed.length - 1].id;
         } else {
           break;
@@ -396,7 +508,10 @@ const resolvers = [
     [/zippyshare.com\//],
     async (url, http) => {
       const { source } = await http.get(url);
-      const expr = h.re.match(/(?<=\('dlbutton'\).href\s=\s).*?(?=;)/i, source).replace(/"(.*?)"/g, `new String("$1")`).replace('\/', '\\\/');
+      const expr = h.re
+        .match(/(?<=\('dlbutton'\).href\s=\s).*?(?=;)/i, source)
+        .replace(/"(.*?)"/g, `new String("$1")`)
+        .replace('/', '\\/');
       const subDomain = h.re.match(/ww\w+/, url);
       return `https://${subDomain}.zippyshare.com${eval(expr)}`;
     },
@@ -1207,15 +1322,26 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
             log.separator(postId);
           }
 
-          resolved.push({
-            url,
-            host,
-            original: resource,
-            folderName,
-          });
-
-          log.post.info(postId, `::Resolved::: ${url}`, postNumber);
+          if (h.isObject(url)) {
+            resolved.push({
+              url: url.url,
+              host,
+              original: resource,
+              folderName: url.folderName,
+            });
+            log.post.info(postId, `::Resolved::: ${url.url}`, postNumber);
+          } else {
+            resolved.push({
+              url,
+              host,
+              original: resource,
+              folderName,
+            });
+            log.post.info(postId, `::Resolved::: ${url}`, postNumber);
+          }
         };
+
+        console.log(r);
 
         if (h.isArray(r.resolved)) {
           r.resolved.forEach(url => addResolved(url, r.folderName));
