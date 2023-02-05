@@ -6,7 +6,7 @@
 // @author x111000111
 // @author backwards
 // @description Downloads images and videos from posts
-// @version 2.3.9
+// @version 2.4.0
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.jpg.church/simpcityIcon192.png
@@ -43,6 +43,7 @@
 // @connect imagebam.com
 // @connect imgur.com
 // @connect jpg.church
+// @connect jpg.fish
 // @connect imgbox.com
 // @connect pixhost.to
 // @connect pixl.is
@@ -1653,7 +1654,7 @@ const hosts = [
   ['anonfiles.com:', [/anonfiles.com/]],
   ['coomer.party:Profiles', [/coomer.party\/[~an@._-]+\/user/]],
   ['coomer.party:image', [/(\w+\.)?coomer.party\/(data|thumbnail)/]],
-  ['jpg.church:image', [/simp(\d+.)?jpg.church\/(?!(banner-c\.png|img\/))/, /jpg.church\/a\/[~an@-_.]+<no_qs>/]],
+  ['jpg.church|fish:image', [/simp(\d+.)?jpg.(church|fish)\/(?!(banner-c\.png|img\/))/, /jpg.(church|fish)\/a\/[~an@-_.]+<no_qs>/]],
   ['kemono.party:direct link', [/.{2,6}\.kemono.party\/data\//]],
   ['postimg.cc:image', [/!!https?:\/\/(www.)?i\.?(postimg|pixxxels).cc\/(.{8})/]], //[/!!https?:\/\/(www.)?postimg.cc\/(.{8})/]],
   [
@@ -1837,9 +1838,9 @@ const resolvers = [
     },
   ],
   [[/kemono.party\/data/], url => url],
-  [[/jpg.church\//i, /:!jpg.church\/a\//i], url => url.replace('.th.', '.').replace('.md.', '.')],
+  [[/jpg.(church|fish)\//i, /:!jpg.(church|fish)\/a\//i], url => url.replace('.th.', '.').replace('.md.', '.')],
   [
-    [/jpg.church\/a\//i],
+    [/jpg.(church|fish)\/a\//i],
     async (url, http) => {
       url = url.replace(/\?.*/, '');
 
