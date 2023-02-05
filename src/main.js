@@ -383,64 +383,82 @@ const resolvers = [
   [
     [/(stream|cdn(\d+)?|i(\d+)?).bunkr.(ru|su)\/(v\/)?/i, /:!bunkr.(ru|su)\/a\//],
     async (url, http) => {
+      url = url.replace('stream.bunkr', 'bunkr').replace(/cdn(\d+)?\.bunkr/, 'bunkr');
+
       url = /(\.zip|\.pdf)/i.test(url) ? url.replace(/cdn\d+/, 'files') : url;
 
-      for (const ext of settings.extensions.image) {
-        if (new RegExp(`\.${ext}$`).test(url.toLowerCase())) {
-          return url.replace(/cdn(\d+)?/, 'i$1');
-        }
+      const ext = h.ext(url).toLowerCase();
+
+      if (settings.extensions.video.includes(`.${ext}`) && !h.contains('/v/', url)) {
+        url = url.replace(/(bunkr.(ru|su))\//, '$1/v/');
       }
 
-      const { dom } = await http.get(url);
-
-      try {
-        const __NEXT_DATA__ = JSON.parse(dom?.querySelector('#__NEXT_DATA__')?.innerHTML || {});
-
-        const buildId = __NEXT_DATA__.buildId;
-
-        if (
-          __NEXT_DATA__.props &&
-          __NEXT_DATA__.props.pageProps &&
-          __NEXT_DATA__.props.pageProps.file &&
-          __NEXT_DATA__.props.pageProps.file.name
-        ) {
-          return `${__NEXT_DATA__.props.pageProps.file.mediafiles}/${__NEXT_DATA__.props.pageProps.file.name}`;
+      if (settings.extensions.image.includes(`.${ext}`)) {
+        url = url.replace(/cdn(\d+)?/, 'i$1');
+        // Fix invalid site-wide replacement.
+        // https://simpcity.su/threads/best-butts.20284/post-1112161
+        if (h.contains('bunkr.su', url)) {
+          url = url.replace('bunkr.su', 'bunkr.ru');
         }
 
-        const filename = h.basename(url).replace(/&amp;/g, '&');
-        const apiUrl = `https://stream.bunkr.su/_next/data/${buildId}/v/${filename}.json`;
-
-        const { source: apiSource } = await http.get(apiUrl);
-
-        const _PROPS = JSON.parse(apiSource.toString());
-
-        if (_PROPS.pageProps && _PROPS.pageProps.file && _PROPS.pageProps.file.name) {
-          return `${_PROPS.pageProps.file.mediafiles}/${_PROPS.pageProps.file.name}`;
-        }
-
-        return null;
-      } catch (e) {
-        return null;
+        return url;
       }
+
+      if (['zip', 'pdf'].includes(ext) && !h.contains('/d/', url)) {
+        url = url.replace(/(bunkr.(ru|su))\//, '$1/d/');
+      }
+
+      const { source } = await http.get(url);
+
+      return h.re.match(/(?<=link.href\s=\s").*?(?=")/, source);
     },
   ],
   [
     [/bunkr.(ru|su)\/a\//],
     async (url, http) => {
-      const { source, dom } = await http.get(url);
+      const { dom, source } = await http.get(url);
 
-      let resolved = [];
+      // noinspection DuplicatedCode
+      const files = [...dom.querySelectorAll('figure.relative')].map((f) => {
+        const a = f.querySelector('a');
+        const img = f.querySelector('a > img');
+        const url = `https://bunkr.su${a.getAttribute('href')}`;
 
-      const props = JSON.parse(dom?.querySelector('#__NEXT_DATA__')?.innerHTML || {});
+        const src = img?.getAttribute('src');
 
-      if (props.props && props.props.pageProps && props.props.pageProps.album && props.props.pageProps.album.files) {
-        resolved = props.props.pageProps.album.files.map(file => `${file.cdn.replace('cdn', 'media-files')}/${file.name}`);
-      }
+        let cdn = null;
+
+        if (src) {
+          const matches = /i((\d+)?).bunkr/i.exec(src);
+          if (matches && matches.length) {
+            cdn = matches[1];
+          }
+        }
+
+        return {
+          name: h.basename(url),
+          url,
+          cdn,
+          img: src
+        }
+      });
+
+      const resolved = files.map(file => {
+        let host = `https://media-files${file.cdn}.bunkr.ru`
+        if (h.contains('media-files12', host)) {
+          host = host.replace('.bunkr.ru', '.bunkr.la');
+        }
+        return `${host}/${file.name}`;
+      });
+
+      const infoContainer = dom.querySelector('h1.text-\\[24px\\]');
+      const parts = infoContainer?.outerText.split('\n').map((t) => t.trim()).filter((t) => t !== '');
+      const albumName = parts.length ? parts[0].trim() : url.split('/').reverse()[0];
 
       return {
         dom,
         source,
-        folderName: dom.querySelector('#title').innerText.trim(),
+        folderName: albumName,
         resolved,
       };
     },
@@ -1496,7 +1514,7 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
             let basename;
 
             if (url.includes('https://pixeldrain.com/')) {
-              basename = response.responseHeaders.match(/^content-disposition.+(?:filename=)(.+)$/im)[1].replace(/\"/g, '');
+              basename = response.responseHeaders.match(/^content-disposition.+filename=(.+)$/im)[1].replace(/"/g, '');
             } else if (url.includes('https://simpcity.su/attachments/')) {
               basename = filename ? filename.name : h.basename(url).replace(/(.*)-(.{3,4})\.\d*$/i, '$1.$2');
             } else if (url.includes('kemono.party')) {
@@ -1810,6 +1828,10 @@ const selectedPosts = [];
   });
 
   document.addEventListener('DOMContentLoaded', async () => {
+    // Fix invalid site-wide replacement.
+    // https://simpcity.su/threads/best-butts.20284/post-1112161
+    document.body.innerHTML = document.body.innerHTML.replace(/https:\/\/i\.bunkr\.su/g, 'https://i.bunkr.ru');
+
     const goFileTokenFetchFailedErr = 'Failed to create GoFile token. GoFile albums may not work. Refresh the browser to retry.';
 
     if (h.isNullOrUndef(settings.hosts.goFile.token) || settings.hosts.goFile.token.trim() === '') {
@@ -2033,6 +2055,17 @@ const selectedPosts = [];
             });
         },
       });
+    }
+
+    for (const p of parsedPosts.filter(p => p.parsedHosts.length)) {
+      for (const decoratorName in decorators) {
+        try {
+          await decorators[decoratorName](p.parsedPost);
+        } catch (e) {
+          console.log(`Error executing decorator: ${decoratorName}`);
+          console.log(e);
+        }
+      }
     }
   });
 })();

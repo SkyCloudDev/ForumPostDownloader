@@ -28,7 +28,7 @@ const parsers = {
       // 2. CodeBlock headers
       // 3. Spoiler button text from each spoiler
       // 2. Icons from un-furled urls (url parser can sometimes match them).
-      ['.js-unfurl-favicon', 'blockquote', '.button-text > span']
+      ['.contentRow-figure', '.js-unfurl-favicon', 'blockquote', '.button-text > span']
         .flatMap(i => [...messageContentClone.querySelectorAll(i)])
         .forEach(i => {
           if (i.tagName === 'BLOCKQUOTE') {
