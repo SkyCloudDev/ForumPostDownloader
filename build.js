@@ -5,7 +5,7 @@ const getContents = path => require('child_process').execSync(`cat ${path}`).toS
 const header = getContents('./src/header.js');
 
 // The inclusion order is important.
-const includes = ['globals.js', 'logging.js', 'settings.js', 'helpers.js', 'prototypes.js', 'parsers.js', 'styles.js', 'ui.js', 'init.js', 'decorators.js']
+const includes = ['globals.js', 'logging.js', 'settings.js', 'helpers.js', 'prototypes.js', 'parsers.js', 'styles.js', 'ui.js', 'init.js']
   .map(fn => getContents(`./src/includes/${fn}`))
   .join('\n');
 const main = getContents('./src/main.js');
