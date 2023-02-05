@@ -46,7 +46,7 @@ const hosts = [
   ['anonfiles.com:', [/anonfiles.com/]],
   ['coomer.party:Profiles', [/coomer.party\/[~an@._-]+\/user/]],
   ['coomer.party:image', [/(\w+\.)?coomer.party\/(data|thumbnail)/]],
-  ['jpg.church:image', [/simp(\d+.)?jpg.church\/(?!(banner-c\.png|img\/))/, /jpg.church\/a\/[~an@-_.]+<no_qs>/]],
+  ['jpg.church|fish:image', [/simp(\d+.)?jpg.(church|fish)\/(?!(banner-c\.png|img\/))/, /jpg.(church|fish)\/a\/[~an@-_.]+<no_qs>/]],
   ['kemono.party:direct link', [/.{2,6}\.kemono.party\/data\//]],
   ['postimg.cc:image', [/!!https?:\/\/(www.)?i\.?(postimg|pixxxels).cc\/(.{8})/]], //[/!!https?:\/\/(www.)?postimg.cc\/(.{8})/]],
   [
@@ -230,9 +230,9 @@ const resolvers = [
     },
   ],
   [[/kemono.party\/data/], url => url],
-  [[/jpg.church\//i, /:!jpg.church\/a\//i], url => url.replace('.th.', '.').replace('.md.', '.')],
+  [[/jpg.(church|fish)\//i, /:!jpg.(church|fish)\/a\//i], url => url.replace('.th.', '.').replace('.md.', '.')],
   [
-    [/jpg.church\/a\//i],
+    [/jpg.(church|fish)\/a\//i],
     async (url, http) => {
       url = url.replace(/\?.*/, '');
 
