@@ -395,12 +395,6 @@ const resolvers = [
 
       if (settings.extensions.image.includes(`.${ext}`)) {
         url = url.replace(/cdn(\d+)?/, 'i$1');
-        // Fix invalid site-wide replacement.
-        // https://simpcity.su/threads/best-butts.20284/post-1112161
-        if (h.contains('bunkr.su', url)) {
-          url = url.replace('bunkr.su', 'bunkr.ru');
-        }
-
         return url;
       }
 
@@ -1828,10 +1822,6 @@ const selectedPosts = [];
   });
 
   document.addEventListener('DOMContentLoaded', async () => {
-    // Fix invalid site-wide replacement.
-    // https://simpcity.su/threads/best-butts.20284/post-1112161
-    document.body.innerHTML = document.body.innerHTML.replace(/https:\/\/i\.bunkr\.su/g, 'https://i.bunkr.ru');
-
     const goFileTokenFetchFailedErr = 'Failed to create GoFile token. GoFile albums may not work. Refresh the browser to retry.';
 
     if (h.isNullOrUndef(settings.hosts.goFile.token) || settings.hosts.goFile.token.trim() === '') {
@@ -2055,17 +2045,6 @@ const selectedPosts = [];
             });
         },
       });
-    }
-
-    for (const p of parsedPosts.filter(p => p.parsedHosts.length)) {
-      for (const decoratorName in decorators) {
-        try {
-          await decorators[decoratorName](p.parsedPost);
-        } catch (e) {
-          console.log(`Error executing decorator: ${decoratorName}`);
-          console.log(e);
-        }
-      }
     }
   });
 })();
