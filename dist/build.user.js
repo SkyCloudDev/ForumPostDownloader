@@ -6,7 +6,7 @@
 // @author x111000111
 // @author backwards
 // @description Downloads images and videos from posts
-// @version 2.4.1
+// @version 2.4.2
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.jpg.church/simpcityIcon192.png
@@ -1732,8 +1732,7 @@ const resolvers = [
     async (url, http) => {
       const { dom, source } = await http.get(url);
 
-      // noinspection DuplicatedCode
-      const files = [...dom.querySelectorAll('figure.relative')].map((f) => {
+      const files = [...dom.querySelectorAll('.grid-images > div')].map((f) => {
         const a = f.querySelector('a');
         const img = f.querySelector('a > img');
         const url = `https://bunkr.su${a.getAttribute('href')}`;

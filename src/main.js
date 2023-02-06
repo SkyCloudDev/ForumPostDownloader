@@ -412,8 +412,7 @@ const resolvers = [
     async (url, http) => {
       const { dom, source } = await http.get(url);
 
-      // noinspection DuplicatedCode
-      const files = [...dom.querySelectorAll('figure.relative')].map((f) => {
+      const files = [...dom.querySelectorAll('.grid-images > div')].map((f) => {
         const a = f.querySelector('a');
         const img = f.querySelector('a > img');
         const url = `https://bunkr.su${a.getAttribute('href')}`;
