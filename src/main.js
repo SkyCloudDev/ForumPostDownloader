@@ -83,7 +83,7 @@ const hosts = [
   [
     'bunkr.su:',
     [
-      /!!(?<=href=")https:\/\/(stream|cdn(\d+)?)?bunkr.*?(?=")|(?<=(href="|src="))https:\/\/i(\d+)?.bunkr.(ru|su)\/(v\/)?.*?(?=")/,
+      /!!(?<=href=")https:\/\/((stream|cdn(\d+)?)\.)?bunkr.(ru|su).*?(?=")|(?<=(href="|src="))https:\/\/i(\d+)?.bunkr.(ru|su)\/(v\/)?.*?(?=")/,
       /bunkr.(ru|su)\/a\//,
     ],
   ],
@@ -381,7 +381,7 @@ const resolvers = [
     },
   ],
   [
-    [/(stream|cdn(\d+)?|i(\d+)?).bunkr.(ru|su)\/(v\/)?/i, /:!bunkr.(ru|su)\/a\//],
+    [/((stream|cdn(\d+)?)\.)?bunkr.(ru|su)|i(\d+)?.bunkr.(ru|su)\/(v\/)?/i, /:!bunkr.(ru|su)\/a\//],
     async (url, http) => {
       url = url.replace('stream.bunkr', 'bunkr').replace(/cdn(\d+)?\.bunkr/, 'bunkr');
 
