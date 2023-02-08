@@ -6,7 +6,7 @@
 // @author x111000111
 // @author backwards
 // @description Downloads images and videos from posts
-// @version 2.4.3
+// @version 2.4.4
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.jpg.church/simpcityIcon192.png
@@ -51,6 +51,7 @@
 // @connect pornhub.com
 // @connect postimg.cc
 // @connect img.kiwi
+// @connect imgvb.com
 // @connect instagram.com
 // @connect cdninstagram.com
 // @connect pixxxels.cc
@@ -1366,7 +1367,7 @@ const hosts = [
   ['anonfiles.com:', [/anonfiles.com/]],
   ['coomer.party:Profiles', [/coomer.party\/[~an@._-]+\/user/]],
   ['coomer.party:image', [/(\w+\.)?coomer.party\/(data|thumbnail)/]],
-  ['jpg.church|fish:image', [/simp(\d+.)?jpg.(church|fish)\/(?!(banner-c\.png|img\/))/, /jpg.(church|fish)\/a\/[~an@-_.]+<no_qs>/]],
+  ['jpg.church|fish:image', [/simp(\d+.)?jpg.(church|fish)\/(?!(images\/0fya082315al\.png|img\/))/, /jpg.(church|fish)\/a\/[~an@-_.]+<no_qs>/]],
   ['kemono.party:direct link', [/.{2,6}\.kemono.party\/data\//]],
   ['postimg.cc:image', [/!!https?:\/\/(www.)?i\.?(postimg|pixxxels).cc\/(.{8})/]], //[/!!https?:\/\/(www.)?postimg.cc\/(.{8})/]],
   [
@@ -1377,7 +1378,8 @@ const hosts = [
     ],
   ],
   ['imagevenue.com:image', [/!!https?:\/\/(www.)?imagevenue\.com\/(.{8})/]],
-  ['img.kiwi:image', [/img.kiwi\/image\//, /img.kiwi\/album\//]],
+  ['img.kiwi:image', [/img.kiwi\/images\//, /img.kiwi\/album\//]],
+  ['imgvb:image', [/imgvb.com\/images\//, /imgvb.com\/album/]],
   ['imgbox.com:image', [/(thumbs|images)(\d+)?.imgbox.com\//, /imgbox.com\/g\//]],
   [
     'imgur.com:Media',
@@ -2339,14 +2341,27 @@ const resolvers = [
     },
   ],
   [
-    [/img.kiwi\/image\//, /:!img.kiwi\/album\//],
+    [/img.kiwi\/images\//, /:!img.kiwi\/album\//], url => url.replace('.th.', '.').replace('.md.', '.')],
+  [
+    [/img.kiwi\/album\//],
     async (url, http) => {
-      const { dom } = await http.get(url);
-      return dom?.querySelector('meta[property="og:image"]')?.content;
+      const { source, dom } = await http.get(url);
+      const resolved = [...dom.querySelectorAll('.image-container > img')]
+        .map(i => i.getAttribute('src'))
+        .map(url => url.replace('.th.', '.').replace('.md.', '.'));
+
+      return {
+        dom,
+        source,
+        folderName: dom?.querySelector('meta[property="og:title"]').content.trim(),
+        resolved,
+      };
     },
   ],
   [
-    [/img.kiwi\/album\//],
+    [/imgvb.com\/images\//, /:!imgvb.com\/album\//], url => url.replace('.th.', '.').replace('.md.', '.')],
+  [
+    [/imgvb.com\/album\//],
     async (url, http) => {
       const { source, dom } = await http.get(url);
       const resolved = [...dom.querySelectorAll('.image-container > img')]
