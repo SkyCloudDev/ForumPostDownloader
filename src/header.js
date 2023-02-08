@@ -6,7 +6,7 @@
 // @author x111000111
 // @author backwards
 // @description Downloads images and videos from posts
-// @version 2.4.3
+// @version 2.4.4
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.jpg.church/simpcityIcon192.png
@@ -51,6 +51,7 @@
 // @connect pornhub.com
 // @connect postimg.cc
 // @connect img.kiwi
+// @connect imgvb.com
 // @connect instagram.com
 // @connect cdninstagram.com
 // @connect pixxxels.cc
