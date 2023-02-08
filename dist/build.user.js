@@ -6,7 +6,7 @@
 // @author x111000111
 // @author backwards
 // @description Downloads images and videos from posts
-// @version 2.4.2
+// @version 2.4.3
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.jpg.church/simpcityIcon192.png
@@ -1403,7 +1403,7 @@ const hosts = [
   [
     'bunkr.su:',
     [
-      /!!(?<=href=")https:\/\/(stream|cdn(\d+)?).*?(?=")|(?<=(href="|src="))https:\/\/i(\d+)?.bunkr.(ru|su)\/(v\/)?.*?(?=")/,
+      /!!(?<=href=")https:\/\/((stream|cdn(\d+)?)\.)?bunkr.(ru|su).*?\.[a-zA-Z0-9]{3,4}.*?(?=")|(?<=(href="|src="))https:\/\/i(\d+)?.bunkr.(ru|su)\/(v\/)?.*?(?=")/,
       /bunkr.(ru|su)\/a\//,
     ],
   ],
@@ -1701,7 +1701,7 @@ const resolvers = [
     },
   ],
   [
-    [/(stream|cdn(\d+)?|i(\d+)?).bunkr.(ru|su)\/(v\/)?/i, /:!bunkr.(ru|su)\/a\//],
+    [/((stream|cdn(\d+)?)\.)?bunkr.(ru|su).*?\.[a-zA-Z0-9]{3,4}|i(\d+)?.bunkr.(ru|su)\/(v\/)?/i, /:!bunkr.(ru|su)\/a\//],
     async (url, http) => {
       url = url.replace('stream.bunkr', 'bunkr').replace(/cdn(\d+)?\.bunkr/, 'bunkr');
 
