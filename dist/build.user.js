@@ -1701,7 +1701,7 @@ const resolvers = [
     },
   ],
   [
-    [/((stream|cdn(\d+)?)\.)?bunkr.(ru|su)|i(\d+)?.bunkr.(ru|su)\/(v\/)?/i, /:!bunkr.(ru|su)\/a\//],
+    [/((stream|cdn(\d+)?)\.)?bunkr.(ru|su).*?\.[a-zA-Z0-9]{3,4}|i(\d+)?.bunkr.(ru|su)\/(v\/)?/i, /:!bunkr.(ru|su)\/a\//],
     async (url, http) => {
       url = url.replace('stream.bunkr', 'bunkr').replace(/cdn(\d+)?\.bunkr/, 'bunkr');
 
