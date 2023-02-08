@@ -83,7 +83,7 @@ const hosts = [
   [
     'bunkr.su:',
     [
-      /!!(?<=href=")https:\/\/(stream|cdn(\d+)?).*?(?=")|(?<=(href="|src="))https:\/\/i(\d+)?.bunkr.(ru|su)\/(v\/)?.*?(?=")/,
+      /!!(?<=href=")https:\/\/(stream|cdn(\d+)?)?bunkr.*?(?=")|(?<=(href="|src="))https:\/\/i(\d+)?.bunkr.(ru|su)\/(v\/)?.*?(?=")/,
       /bunkr.(ru|su)\/a\//,
     ],
   ],
