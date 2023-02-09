@@ -95,7 +95,7 @@ const hosts = [
   ['erome.com:', [/erome.com\/a\//]],
   ['box.com:', [/m\.box\.com\//]],
   ['yandex.ru:', [/(disk\.)?yandex\.[a-z]+/]],
-  ['cyberfile.su:', [/!!https:\/\/cyberfile.su\/\w+(\/)?(?=")/, /cyberfile.su\/folder\//]],
+  ['cyberfile.me:', [/!!https:\/\/cyberfile.(su|me)\/\w+(\/)?(?=")/, /cyberfile.(su|me)\/folder\//]],
   ['cyberdrop.me:', [/fs-\d+.cyberdrop.(me|to|cc|nl)\//, /cyberdrop.(me|to|cc|nl)\/a\//]],
   ['pornhub.com:video', [/([~an@]+\.)?pornhub.com\/view_video/]],
   ['noodlemagazine.com:video', [/(adult.)?noodlemagazine.com\/watch\//]],
@@ -747,14 +747,14 @@ const resolvers = [
     },
   ],
   [
-    [/cyberfile.su\//, /:!cyberfile.su\/folder\//],
+    [/cyberfile.(su|me)\//, /:!cyberfile.(su|me)\/folder\//],
     async (url, http, spoilers) => {
       const { source } = await http.get(url);
       const u = h.re.matchAll(/(?<=showFileInformation\()\d+(?=\))/gis, source)[0];
 
       const getFileInfo = async () => {
         const { source } = await http.post(
-          'https://cyberfile.su/account/ajax/file_details',
+          'https://cyberfile.smeu/account/ajax/file_details',
           `u=${u}`,
           {},
           {
@@ -783,7 +783,7 @@ const resolvers = [
         requiredPassword = true;
         for (const password of spoilers) {
           const { source } = await http.post(
-            'https://cyberfile.su/ajax/folder_password_process',
+            'https://cyberfile.me/ajax/folder_password_process',
             `submitme=1&folderId=${folderId}&folderPassword=${password}`,
             {},
             {
@@ -806,7 +806,7 @@ const resolvers = [
     },
   ],
   [
-    [/cyberfile.su\/folder\//],
+    [/cyberfile.(su|me)\/folder\//],
     async (url, http, spoilers) => {
       const { source, dom } = await http.get(url);
 
@@ -816,7 +816,7 @@ const resolvers = [
 
       const loadFiles = async () => {
         const { source } = await http.post(
-          'https://cyberfile.su/account/ajax/load_files',
+          'https://cyberfile.me/account/ajax/load_files',
           `pageType=folder&nodeId=${nodeId}`,
           {},
           {
@@ -835,7 +835,7 @@ const resolvers = [
         requiredPassword = true;
         for (const password of spoilers) {
           const { source } = await http.post(
-            'https://cyberfile.su/ajax/folder_password_process',
+            'https://cyberfile.me/ajax/folder_password_process',
             `submitme=1&folderId=${nodeId}&folderPassword=${password}`,
             {},
             {
@@ -873,7 +873,7 @@ const resolvers = [
           const { source } = await http.get(fileUrl);
           const u = h.re.matchAll(/(?<=showFileInformation\()\d+(?=\))/gis, source)[0];
           const { source: response } = await http.post(
-            'https://cyberfile.su/account/ajax/file_details',
+            'https://cyberfile.me/account/ajax/file_details',
             `u=${u}`,
             {},
             {
