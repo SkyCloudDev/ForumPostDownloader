@@ -754,7 +754,7 @@ const resolvers = [
 
       const getFileInfo = async () => {
         const { source } = await http.post(
-          'https://cyberfile.smeu/account/ajax/file_details',
+          'https://cyberfile.me/account/ajax/file_details',
           `u=${u}`,
           {},
           {
