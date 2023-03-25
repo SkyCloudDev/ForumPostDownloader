@@ -6,7 +6,7 @@
 // @author x111000111
 // @author backwards
 // @description Downloads images and videos from posts
-// @version 2.4.6
+// @version 2.4.7
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.jpg.church/simpcityIcon192.png
@@ -1368,7 +1368,7 @@ const hosts = [
   ['anonfiles.com:', [/anonfiles.com/]],
   ['coomer.party:Profiles', [/coomer.party\/[~an@._-]+\/user/]],
   ['coomer.party:image', [/(\w+\.)?coomer.party\/(data|thumbnail)/]],
-  ['jpg.church|fish:image', [/simp(\d+.)?jpg.(church|fish)\/(?!(images\/0fya082315al\.png|img\/))/, /jpg.(church|fish)\/a\/[~an@-_.]+<no_qs>/]],
+  ['jpg.church|fish:image', [/(simp\d+.)?jpg.(church|fish)\/(?!(images\/0fya082315al\.png|img\/))/, /jpg.(church|fish)\/a\/[~an@-_.]+<no_qs>/]],
   ['kemono.party:direct link', [/.{2,6}\.kemono.party\/data\//]],
   ['postimg.cc:image', [/!!https?:\/\/(www.)?i\.?(postimg|pixxxels).cc\/(.{8})/]], //[/!!https?:\/\/(www.)?postimg.cc\/(.{8})/]],
   [
@@ -1406,8 +1406,8 @@ const hosts = [
   [
     'bunkr.su:',
     [
-      /!!(?<=href=")https:\/\/((stream|cdn(\d+)?)\.)?bunkr.(ru|su).*?\.[a-zA-Z0-9]{3,4}.*?(?=")|(?<=(href="|src="))https:\/\/i(\d+)?.bunkr.(ru|su)\/(v\/)?.*?(?=")/,
-      /bunkr.(ru|su)\/a\//,
+      /!!(?<=href=")https:\/\/((stream|cdn(\d+)?)\.)?bunkr.(ru|su|la).*?\.[a-zA-Z0-9]{3,4}.*?(?=")|(?<=(href="|src="))https:\/\/i(\d+)?.bunkr.(ru|su|la)\/(v\/)?.*?(?=")/,
+      /bunkr.(ru|su|la)\/a\//,
     ],
   ],
   ['give.xxx:Profiles', [/give.xxx\/[~an@_-]+/]],
@@ -1553,7 +1553,8 @@ const resolvers = [
     },
   ],
   [[/kemono.party\/data/], url => url],
-  [[/jpg.(church|fish)\//i, /:!jpg.(church|fish)\/a\//i], url => url.replace('.th.', '.').replace('.md.', '.')],
+  [[/jpg.(church|fish)\//i, /:!jpg.(church|fish)\/a\//i], url => url.replace('.th.', '.').replace('.md.', '.').replace(/simp([1-5])\.jpg\.church/,'simp$1.jpg.fish')
+],
   [
     [/jpg.(church|fish)\/a\//i],
     async (url, http) => {
@@ -1564,7 +1565,7 @@ const resolvers = [
       const resolvePageImages = async dom => {
         const images = [...dom.querySelectorAll('.list-item-image > a > img')]
           .map(img => img.getAttribute('src'))
-          .map(url => url.replace('.md.', '.').replace('.th.', '.'));
+          .map(url => url.replace('.md.', '.').replace('.th.', '.').replace(/simp([1-5])\.jpg\.church/,'simp$1.jpg.fish'));
 
         const nextPage = dom.querySelector('a[data-pagination="next"]');
 
@@ -1704,7 +1705,7 @@ const resolvers = [
     },
   ],
   [
-    [/((stream|cdn(\d+)?)\.)?bunkr.(ru|su).*?\.[a-zA-Z0-9]{3,4}|i(\d+)?.bunkr.(ru|su)\/(v\/)?/i, /:!bunkr.(ru|su)\/a\//],
+    [/((stream|cdn(\d+)?)\.)?bunkr.(ru|su|la).*?\.[a-zA-Z0-9]{3,4}|i(\d+)?.bunkr.(ru|su|la)\/(v\/)?/i, /:!bunkr.(ru|su|la)\/a\//],
     async (url, http) => {
       url = url.replace('stream.bunkr', 'bunkr').replace(/cdn(\d+)?\.bunkr/, 'bunkr');
 
@@ -1713,7 +1714,7 @@ const resolvers = [
       const ext = h.ext(url).toLowerCase();
 
       if (settings.extensions.video.includes(`.${ext}`) && !h.contains('/v/', url)) {
-        url = url.replace(/(bunkr.(ru|su))\//, '$1/v/');
+        url = url.replace(/(bunkr.(ru|su|la))\//, '$1/v/');
       }
 
       if (settings.extensions.image.includes(`.${ext}`)) {
@@ -1722,7 +1723,7 @@ const resolvers = [
       }
 
       if (['zip', 'pdf'].includes(ext) && !h.contains('/d/', url)) {
-        url = url.replace(/(bunkr.(ru|su))\//, '$1/d/');
+        url = url.replace(/(bunkr.(ru|su|la))\//, '$1/d/');
       }
 
       const { source } = await http.get(url);
@@ -1731,14 +1732,14 @@ const resolvers = [
     },
   ],
   [
-    [/bunkr.(ru|su)\/a\//],
+    [/bunkr.(ru|su|la)\/a\//],
     async (url, http) => {
       const { dom, source } = await http.get(url);
 
       const files = [...dom.querySelectorAll('.grid-images > div')].map((f) => {
         const a = f.querySelector('a');
         const img = f.querySelector('a > img');
-        const url = `https://bunkr.su${a.getAttribute('href')}`;
+        const url = `https://bunkr.la${a.getAttribute('href')}`;
 
         const src = img?.getAttribute('src');
 
