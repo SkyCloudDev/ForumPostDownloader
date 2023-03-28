@@ -1368,7 +1368,7 @@ const hosts = [
   ['anonfiles.com:', [/anonfiles.com/]],
   ['coomer.party:Profiles', [/coomer.party\/[~an@._-]+\/user/]],
   ['coomer.party:image', [/(\w+\.)?coomer.party\/(data|thumbnail)/]],
-  ['jpg.church|fish:image', [/(simp\d+.)?jpg.(church|fish)\/(?!(images\/0fya082315al\.png|img\/))/, /jpg.(church|fish)\/a\/[~an@-_.]+<no_qs>/]],
+  ['jpg.fish:image', [/(simp\d+.)?jpg.(church|fish)\/(?!(images\/0fya082315al\.png|img\/))/, /jpg.(church|fish)\/a\/[~an@-_.]+<no_qs>/]],
   ['kemono.party:direct link', [/.{2,6}\.kemono.party\/data\//]],
   ['postimg.cc:image', [/!!https?:\/\/(www.)?i\.?(postimg|pixxxels).cc\/(.{8})/]], //[/!!https?:\/\/(www.)?postimg.cc\/(.{8})/]],
   [
