@@ -20,7 +20,7 @@ const parsers = {
       const messageContentClone = messageContent.cloneNode(true);
 
       const postIdAnchor = post.querySelector('li:last-of-type > a');
-      const postId = /(?<=post-).*/i.exec(postIdAnchor.getAttribute('href'))[0];
+      const postId = /(?<=\/post-).*/i.exec(postIdAnchor.getAttribute('href'))[0];
       const postNumber = postIdAnchor.textContent.replace('#', '').trim();
 
       // Remove the following from the post content:
