@@ -385,8 +385,6 @@ const resolvers = [
   [
     [/((stream|cdn(\d+)?)\.)?bunkr.(ru|su|la).*?\.[a-zA-Z0-9]{3,4}|i(\d+)?.bunkr.(ru|su|la)\/(v\/)?/i, /:!bunkr.(ru|su|la)\/a\//],
     async (url, http) => {
-      url = url.replace('stream.bunkr', 'bunkr').replace(/cdn(\d+)?\.bunkr/, 'bunkr');
-
       url = /(\.zip|\.pdf)/i.test(url) ? url.replace(/cdn\d+/, 'files') : url;
 
       const ext = h.ext(url).toLowerCase();
@@ -404,9 +402,11 @@ const resolvers = [
         url = url.replace(/(bunkr.(ru|su|la))\//, '$1/d/');
       }
 
-      const { source } = await http.get(url);
+      const { dom } = await http.get(url);
 
-      return h.re.match(/(?<=link.href\s=\s").*?(?=")/, source);
+      const btnDownload = dom.querySelector("body > main > section:nth-child(1) > div > div > div > div.w-full.px-0.lg\\:w-2\\/4 > div > a");
+
+      return !btnDownload ? null : btnDownload.getAttribute('href');
     },
   ],
   [
