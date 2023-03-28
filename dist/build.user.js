@@ -6,7 +6,7 @@
 // @author x111000111
 // @author backwards
 // @description Downloads images and videos from posts
-// @version 2.4.8
+// @version 2.4.9
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.jpg.church/simpcityIcon192.png
@@ -593,7 +593,7 @@ const parsers = {
       const messageContentClone = messageContent.cloneNode(true);
 
       const postIdAnchor = post.querySelector('li:last-of-type > a');
-      const postId = /(?<=post-).*/i.exec(postIdAnchor.getAttribute('href'))[0];
+      const postId = /(?<=\/post-).*/i.exec(postIdAnchor.getAttribute('href'))[0];
       const postNumber = postIdAnchor.textContent.replace('#', '').trim();
 
       // Remove the following from the post content:
@@ -1269,8 +1269,7 @@ const ui = {
                       .flatMap(host => h.element(`#downloader-host-${host.id}-${postId}`))
                       .filter(h => h.checked).length;
 
-                    const totalResources = parsedHosts
-                      .reduce((acc, host) => acc + host.resources.length, 0);
+                    const totalResources = parsedHosts.reduce((acc, host) => acc + host.resources.length, 0);
 
                     const totalDownloadableResources = parsedHosts
                       .filter(host => host.enabled && host.resources.length)
@@ -1441,9 +1440,7 @@ const resolvers = [
       return dom.querySelector('.col-md-12 > a > img').getAttribute('src');
     },
   ],
-  [
-    [/coomer.party\/(data|thumbnail)/], url => url,
-  ],
+  [[/coomer.party\/(data|thumbnail)/], url => url],
   [
     [/coomer.party/, /:!coomer.party\/(data|thumbnail)/],
     async (url, http) => {
@@ -1553,19 +1550,88 @@ const resolvers = [
     },
   ],
   [[/kemono.party\/data/], url => url],
-  [[/jpg.(church|fish)\//i, /:!jpg.(church|fish)\/a\//i], url => url.replace('.th.', '.').replace('.md.', '.').replace(/simp([1-5])\.jpg\.church/,'simp$1.jpg.fish')
-],
+  [
+    [/jpg.(church|fish)\//i, /:!jpg.(church|fish)\/a\//i],
+    url =>
+      url
+        .replace('.th.', '.')
+        .replace('.md.', '.')
+        .replace(/simp([1-5])\.jpg\.church/, 'simp$1.jpg.fish'),
+  ],
   [
     [/jpg.(church|fish)\/a\//i],
-    async (url, http) => {
+    async (url, http, spoilers, postId) => {
       url = url.replace(/\?.*/, '');
 
-      const { source, dom } = await http.get(url);
+      let reFetch = false;
+
+      let { source, dom } = await http.get(url, {
+        onStateChange: response => {
+          // If it's a redirect, we'll have to fetch the new url.
+          if (response.readyState === 2 && response.finalUrl !== url) {
+            url = response.finalUrl;
+            reFetch = true;
+          }
+        },
+      });
+
+      if (reFetch) {
+        const { source: src, dom: d } = await http.get(url);
+        source = src;
+        dom = d;
+      }
+
+      if (h.contains('Please enter your password to continue', source)) {
+        const authTokenNode = dom.querySelector('input[name="auth_token"]');
+        const authToken = !authTokenNode ? null : authTokenNode.getAttribute('value');
+
+        if (!authToken || !spoilers || !spoilers.length) {
+          return null;
+        }
+
+        const attemptWithPassword = async password => {
+          const { source, dom } = await http.post(
+            url,
+            `auth_token=${authToken}&content-password=${password}`,
+            {},
+            {
+              Referer: url,
+              Origin: 'https://jpg.fish',
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+          );
+          return { source, dom };
+        };
+
+        let authenticated = false;
+
+        spoilers = ['ramona'];
+
+        for (const spoiler of spoilers) {
+          const { source: src, dom: d } = await attemptWithPassword(spoiler.trim());
+          if (!h.contains('Please enter your password to continue', src)) {
+            authenticated = true;
+            source = src;
+            dom = d;
+            break;
+          }
+        }
+
+        if (!authenticated) {
+          log.host.error(postId, `::Could not resolve password protected album::: ${url}`, 'jpg.fish');
+          return null;
+        }
+      }
 
       const resolvePageImages = async dom => {
         const images = [...dom.querySelectorAll('.list-item-image > a > img')]
           .map(img => img.getAttribute('src'))
-          .map(url => url.replace('.md.', '.').replace('.th.', '.').replace(/simp([1-5])\.jpg\.church/,'simp$1.jpg.fish'));
+          .map(url =>
+            url
+              .replace('.md.', '.')
+              .replace('.th.', '.')
+              .replace(/simp([1-5])\.jpg\.church/, 'simp$1.jpg.fish'),
+          );
 
         const nextPage = dom.querySelector('a[data-pagination="next"]');
 
@@ -1652,9 +1718,63 @@ const resolvers = [
   ],
   [[/([a-z](\d+)?\.)pixl.(li|is)\/((img|image)\/)?/, /:!pixl.(li|is)\/album\//], url => url.replace('.th.', '.').replace('.md.', '.')],
   [
-    [/pixl.(li|is)\/album\//],
-    async (url, http) => {
-      const { source, dom } = await http.get(url);
+    [/pixl.(li|is)\/(album)\//],
+    async (url, http, spoilers, postId) => {
+      let reFetch = false;
+
+      let { source, dom } = await http.get(url, {
+        onStateChange: response => {
+          // If it's a redirect, we'll have to fetch the new url.
+          if (response.readyState === 2 && response.finalUrl !== url) {
+            url = response.finalUrl;
+            reFetch = true;
+          }
+        },
+      });
+
+      if (reFetch) {
+        const { source: src, dom: d } = await http.get(url);
+        source = src;
+        dom = d;
+      }
+
+      if (h.contains('Please enter your password to continue', source)) {
+        const authTokenNode = dom.querySelector('input[name="auth_token"]');
+        const authToken = !authTokenNode ? null : authTokenNode.getAttribute('value');
+
+        if (!authToken || !spoilers || !spoilers.length) {
+          return null;
+        }
+
+        const attemptWithPassword = async password => {
+          const { source, dom } = await http.post(
+            url,
+            `auth_token=${authToken}&content-password=${password}`,
+            {},
+            {
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+          );
+          return { source, dom };
+        };
+
+        let authenticated = false;
+
+        for (const spoiler of spoilers) {
+          const { source: src, dom: d } = await attemptWithPassword(spoiler.trim());
+          if (!h.contains('Please enter your password to continue', src)) {
+            authenticated = true;
+            source = src;
+            dom = d;
+            break;
+          }
+        }
+
+        if (!authenticated) {
+          log.host.error(postId, `::Could not resolve password protected album::: ${url}`, 'pixl.li');
+          return null;
+        }
+      }
 
       const extractImages = dom => {
         return [...dom.querySelectorAll('.image-container > img')]
@@ -1726,7 +1846,9 @@ const resolvers = [
 
       const { dom } = await http.get(url);
 
-      const btnDownload = dom.querySelector("body > main > section:nth-child(1) > div > div > div > div.w-full.px-0.lg\\:w-2\\/4 > div > a");
+      const btnDownload = dom.querySelector(
+        'body > main > section:nth-child(1) > div > div > div > div.w-full.px-0.lg\\:w-2\\/4 > div > a',
+      );
 
       return !btnDownload ? null : btnDownload.getAttribute('href');
     },
@@ -1736,7 +1858,7 @@ const resolvers = [
     async (url, http) => {
       const { dom, source } = await http.get(url);
 
-      const files = [...dom.querySelectorAll('.grid-images > div')].map((f) => {
+      const files = [...dom.querySelectorAll('.grid-images > div')].map(f => {
         const a = f.querySelector('a');
         const img = f.querySelector('a > img');
         const url = `https://bunkr.la${a.getAttribute('href')}`;
@@ -1756,12 +1878,12 @@ const resolvers = [
           name: h.basename(url),
           url,
           cdn,
-          img: src
-        }
+          img: src,
+        };
       });
 
       const resolved = files.map(file => {
-        let host = `https://media-files${file.cdn}.bunkr.ru`
+        let host = `https://media-files${file.cdn}.bunkr.ru`;
         if (h.contains('media-files12', host)) {
           host = host.replace('.bunkr.ru', '.bunkr.la');
         }
@@ -1769,7 +1891,10 @@ const resolvers = [
       });
 
       const infoContainer = dom.querySelector('h1.text-\\[24px\\]');
-      const parts = infoContainer?.outerText.split('\n').map((t) => t.trim()).filter((t) => t !== '');
+      const parts = infoContainer?.outerText
+        .split('\n')
+        .map(t => t.trim())
+        .filter(t => t !== '');
       const albumName = parts.length ? parts[0].trim() : url.split('/').reverse()[0];
 
       return {
@@ -2085,7 +2210,7 @@ const resolvers = [
           },
         );
         return source;
-      }
+      };
 
       let response = await getFileInfo();
 
@@ -2147,7 +2272,7 @@ const resolvers = [
           },
         );
         return source;
-      }
+      };
 
       let response = await loadFiles();
 
@@ -2342,8 +2467,7 @@ const resolvers = [
       }
     },
   ],
-  [
-    [/img.kiwi\/images\//, /:!img.kiwi\/album\//], url => url.replace('.th.', '.').replace('.md.', '.')],
+  [[/img.kiwi\/images\//, /:!img.kiwi\/album\//], url => url.replace('.th.', '.').replace('.md.', '.')],
   [
     [/img.kiwi\/album\//],
     async (url, http) => {
@@ -2360,8 +2484,7 @@ const resolvers = [
       };
     },
   ],
-  [
-    [/imgvb.com\/images\//, /:!imgvb.com\/album\//], url => url.replace('.th.', '.').replace('.md.', '.')],
+  [[/imgvb.com\/images\//, /:!imgvb.com\/album\//], url => url.replace('.th.', '.').replace('.md.', '.')],
   [
     [/imgvb.com\/album\//],
     async (url, http) => {
@@ -3275,7 +3398,7 @@ const selectedPosts = [];
 
     h.elements('.message-attribution-opposite').forEach(post => {
       const settings = {
-        zipped: true,
+        zipped: false,
         flatten: false,
         generateLinks: false,
         generateLog: false,

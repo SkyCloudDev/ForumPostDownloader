@@ -491,8 +491,7 @@ const ui = {
                       .flatMap(host => h.element(`#downloader-host-${host.id}-${postId}`))
                       .filter(h => h.checked).length;
 
-                    const totalResources = parsedHosts
-                      .reduce((acc, host) => acc + host.resources.length, 0);
+                    const totalResources = parsedHosts.reduce((acc, host) => acc + host.resources.length, 0);
 
                     const totalDownloadableResources = parsedHosts
                       .filter(host => host.enabled && host.resources.length)
