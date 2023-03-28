@@ -6,7 +6,7 @@
 // @author x111000111
 // @author backwards
 // @description Downloads images and videos from posts
-// @version 2.5.0
+// @version 2.5.1
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.jpg.church/simpcityIcon192.png
@@ -3398,7 +3398,7 @@ const selectedPosts = [];
 
     h.elements('.message-attribution-opposite').forEach(post => {
       const settings = {
-        zipped: false,
+        zipped: true,
         flatten: false,
         generateLinks: false,
         generateLog: false,
