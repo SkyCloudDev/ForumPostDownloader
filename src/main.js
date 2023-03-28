@@ -2077,7 +2077,7 @@ const selectedPosts = [];
 
     h.elements('.message-attribution-opposite').forEach(post => {
       const settings = {
-        zipped: false,
+        zipped: true,
         flatten: false,
         generateLinks: false,
         generateLog: false,
