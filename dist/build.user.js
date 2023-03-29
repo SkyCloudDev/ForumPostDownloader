@@ -6,7 +6,7 @@
 // @author x111000111
 // @author backwards
 // @description Downloads images and videos from posts
-// @version 2.5.1
+// @version 2.5.2
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.jpg.church/simpcityIcon192.png
@@ -45,6 +45,7 @@
 // @connect imgur.com
 // @connect jpg.church
 // @connect jpg.fish
+// @connect jpg.fishing
 // @connect imgbox.com
 // @connect pixhost.to
 // @connect pixl.is
@@ -1367,7 +1368,7 @@ const hosts = [
   ['anonfiles.com:', [/anonfiles.com/]],
   ['coomer.party:Profiles', [/coomer.party\/[~an@._-]+\/user/]],
   ['coomer.party:image', [/(\w+\.)?coomer.party\/(data|thumbnail)/]],
-  ['jpg.fish:image', [/(simp\d+.)?jpg.(church|fish)\/(?!(images\/0fya082315al\.png|img\/))/, /jpg.(church|fish)\/a\/[~an@-_.]+<no_qs>/]],
+  ['jpg.fish:image', [/(simp\d+.)?jpg.(church|fish|fishing)\/(?!(images\/0fya082315al\.png|img\/))/, /jpg.(church|fish|fishing)\/a\/[~an@-_.]+<no_qs>/]],
   ['kemono.party:direct link', [/.{2,6}\.kemono.party\/data\//]],
   ['postimg.cc:image', [/!!https?:\/\/(www.)?i\.?(postimg|pixxxels).cc\/(.{8})/]], //[/!!https?:\/\/(www.)?postimg.cc\/(.{8})/]],
   [
@@ -1551,7 +1552,7 @@ const resolvers = [
   ],
   [[/kemono.party\/data/], url => url],
   [
-    [/jpg.(church|fish)\//i, /:!jpg.(church|fish)\/a\//i],
+    [/jpg.(church|fish|fishing)\//i, /:!jpg.(church|fish|fishing)\/a\//i],
     url =>
       url
         .replace('.th.', '.')
@@ -1559,7 +1560,7 @@ const resolvers = [
         .replace(/simp([1-5])\.jpg\.church/, 'simp$1.jpg.fish'),
   ],
   [
-    [/jpg.(church|fish)\/a\//i],
+    [/jpg.(church|fish|fishing)\/a\//i],
     async (url, http, spoilers, postId) => {
       url = url.replace(/\?.*/, '');
 
@@ -1596,7 +1597,7 @@ const resolvers = [
             {},
             {
               Referer: url,
-              Origin: 'https://jpg.fish',
+              Origin: 'https://jpg.fishing',
               'Content-Type': 'application/x-www-form-urlencoded',
             },
           );
@@ -1618,7 +1619,7 @@ const resolvers = [
         }
 
         if (!authenticated) {
-          log.host.error(postId, `::Could not resolve password protected album::: ${url}`, 'jpg.fish');
+          log.host.error(postId, `::Could not resolve password protected album::: ${url}`, 'jpg.fishing');
           return null;
         }
       }
