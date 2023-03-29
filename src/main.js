@@ -46,7 +46,7 @@ const hosts = [
   ['anonfiles.com:', [/anonfiles.com/]],
   ['coomer.party:Profiles', [/coomer.party\/[~an@._-]+\/user/]],
   ['coomer.party:image', [/(\w+\.)?coomer.party\/(data|thumbnail)/]],
-  ['jpg.fish:image', [/(simp\d+.)?jpg.(church|fish)\/(?!(images\/0fya082315al\.png|img\/))/, /jpg.(church|fish)\/a\/[~an@-_.]+<no_qs>/]],
+  ['jpg.fish:image', [/(simp\d+.)?jpg.(church|fish|fishing)\/(?!(images\/0fya082315al\.png|img\/))/, /jpg.(church|fish|fishing)\/a\/[~an@-_.]+<no_qs>/]],
   ['kemono.party:direct link', [/.{2,6}\.kemono.party\/data\//]],
   ['postimg.cc:image', [/!!https?:\/\/(www.)?i\.?(postimg|pixxxels).cc\/(.{8})/]], //[/!!https?:\/\/(www.)?postimg.cc\/(.{8})/]],
   [
@@ -230,7 +230,7 @@ const resolvers = [
   ],
   [[/kemono.party\/data/], url => url],
   [
-    [/jpg.(church|fish)\//i, /:!jpg.(church|fish)\/a\//i],
+    [/jpg.(church|fish|fishing)\//i, /:!jpg.(church|fish|fishing)\/a\//i],
     url =>
       url
         .replace('.th.', '.')
@@ -238,7 +238,7 @@ const resolvers = [
         .replace(/simp([1-5])\.jpg\.church/, 'simp$1.jpg.fish'),
   ],
   [
-    [/jpg.(church|fish)\/a\//i],
+    [/jpg.(church|fish|fishing)\/a\//i],
     async (url, http, spoilers, postId) => {
       url = url.replace(/\?.*/, '');
 
@@ -275,7 +275,7 @@ const resolvers = [
             {},
             {
               Referer: url,
-              Origin: 'https://jpg.fish',
+              Origin: 'https://jpg.fishing',
               'Content-Type': 'application/x-www-form-urlencoded',
             },
           );
@@ -297,7 +297,7 @@ const resolvers = [
         }
 
         if (!authenticated) {
-          log.host.error(postId, `::Could not resolve password protected album::: ${url}`, 'jpg.fish');
+          log.host.error(postId, `::Could not resolve password protected album::: ${url}`, 'jpg.fishing');
           return null;
         }
       }
