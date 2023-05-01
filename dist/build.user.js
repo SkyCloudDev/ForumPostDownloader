@@ -6,7 +6,7 @@
 // @author x111000111
 // @author backwards
 // @description Downloads images and videos from posts
-// @version 2.5.2
+// @version 2.5.3
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.jpg.church/simpcityIcon192.png
@@ -18,6 +18,7 @@
 // @require https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js
 // @require https://raw.githubusercontent.com/geraintluff/sha256/gh-pages/sha256.min.js
 // @connect self
+// @connect anh.im
 // @connect anonfiles.com
 // @connect coomer.party
 // @connect box.com
@@ -52,7 +53,6 @@
 // @connect pixl.li
 // @connect pornhub.com
 // @connect postimg.cc
-// @connect img.kiwi
 // @connect imgvb.com
 // @connect instagram.com
 // @connect cdninstagram.com
@@ -1365,6 +1365,7 @@ let processing = [];
  */
 const hosts = [
   ['simpcity.su:Attachments', [/simpcity.su\/attachments/]],
+  ['anh.im:image', [/([a-z](\d+)?\.)anh.im\/((img|image)\/)?/, /anh.im\/album\//]],
   ['anonfiles.com:', [/anonfiles.com/]],
   ['coomer.party:Profiles', [/coomer.party\/[~an@._-]+\/user/]],
   ['coomer.party:image', [/(\w+\.)?coomer.party\/(data|thumbnail)/]],
@@ -1379,7 +1380,6 @@ const hosts = [
     ],
   ],
   ['imagevenue.com:image', [/!!https?:\/\/(www.)?imagevenue\.com\/(.{8})/]],
-  ['img.kiwi:image', [/img.kiwi\/images\//, /img.kiwi\/album\//]],
   ['imgvb:image', [/imgvb.com\/images\//, /imgvb.com\/album/]],
   ['imgbox.com:image', [/(thumbs|images)(\d+)?.imgbox.com\//, /imgbox.com\/g\//]],
   [
@@ -1439,6 +1439,90 @@ const resolvers = [
     async (url, http) => {
       const { dom } = await http.get(url);
       return dom.querySelector('.col-md-12 > a > img').getAttribute('src');
+    },
+  ],
+  [[/([a-z](\d+)?\.)anh.im\/((img|image)\/)?/, /:!anh.im\/album\//], url => url.replace('.th.', '.').replace('.md.', '.')],
+  [
+    [/anh.im\/(album)\//],
+    async (url, http, spoilers, postId) => {
+      let reFetch = false;
+
+      let { source, dom } = await http.get(url, {
+        onStateChange: response => {
+          // If it's a redirect, we'll have to fetch the new url.
+          if (response.readyState === 2 && response.finalUrl !== url) {
+            url = response.finalUrl;
+            reFetch = true;
+          }
+        },
+      });
+
+      if (reFetch) {
+        const { source: src, dom: d } = await http.get(url);
+        source = src;
+        dom = d;
+      }
+
+      if (h.contains('Please enter your password to continue', source)) {
+        const authTokenNode = dom.querySelector('input[name="auth_token"]');
+        const authToken = !authTokenNode ? null : authTokenNode.getAttribute('value');
+
+        if (!authToken || !spoilers || !spoilers.length) {
+          return null;
+        }
+
+        const attemptWithPassword = async password => {
+          const { source, dom } = await http.post(
+            url,
+            `auth_token=${authToken}&content-password=${password}`,
+            {},
+            {
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+          );
+          return { source, dom };
+        };
+
+        let authenticated = false;
+
+        for (const spoiler of spoilers) {
+          const { source: src, dom: d } = await attemptWithPassword(spoiler.trim());
+          if (!h.contains('Please enter your password to continue', src)) {
+            authenticated = true;
+            source = src;
+            dom = d;
+            break;
+          }
+        }
+
+        if (!authenticated) {
+          log.host.error(postId, `::Could not resolve password protected album::: ${url}`, 'anh.im');
+          return null;
+        }
+      }
+
+      const extractImages = dom => {
+        return [...dom.querySelectorAll('.image-container > img')]
+          .map(img => img.getAttribute('src'))
+          .map(url => url.replace('.th.', '.').replace('.md.', '.'));
+      };
+
+      let resolved = extractImages(dom);
+
+      let nextPage = dom.querySelector('.pagination-next > a')?.getAttribute('href');
+
+      while (nextPage) {
+        const { dom } = await http.get(nextPage);
+        resolved = resolved.concat(extractImages(dom));
+        nextPage = dom.querySelector('.pagination-next > a')?.getAttribute('href');
+      }
+
+      return {
+        dom,
+        source,
+        folderName: dom.querySelector('meta[property="og:title"]').content.trim(),
+        resolved,
+      };
     },
   ],
   [[/coomer.party\/(data|thumbnail)/], url => url],
@@ -2468,23 +2552,6 @@ const resolvers = [
       }
     },
   ],
-  [[/img.kiwi\/images\//, /:!img.kiwi\/album\//], url => url.replace('.th.', '.').replace('.md.', '.')],
-  [
-    [/img.kiwi\/album\//],
-    async (url, http) => {
-      const { source, dom } = await http.get(url);
-      const resolved = [...dom.querySelectorAll('.image-container > img')]
-        .map(i => i.getAttribute('src'))
-        .map(url => url.replace('.th.', '.').replace('.md.', '.'));
-
-      return {
-        dom,
-        source,
-        folderName: dom?.querySelector('meta[property="og:title"]').content.trim(),
-        resolved,
-      };
-    },
-  ],
   [[/imgvb.com\/images\//, /:!imgvb.com\/album\//], url => url.replace('.th.', '.').replace('.md.', '.')],
   [
     [/imgvb.com\/album\//],
@@ -3114,7 +3181,7 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
             fn = fn.replace(/[\x00-\x08\x0E-\x1F\x7F-\uFFFF]/g, '');
 
             if (!isFF) {
-              fn = `#${postNumber}/${fn}`;
+              fn = `${fn}`;
             }
 
             const saveAs = `${title}/${fn}`;
