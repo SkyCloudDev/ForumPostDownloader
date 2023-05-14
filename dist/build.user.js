@@ -6,7 +6,7 @@
 // @author x111000111
 // @author backwards
 // @description Downloads images and videos from posts
-// @version 2.5.4
+// @version 2.5.5
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.jpg.church/simpcityIcon192.png
@@ -1375,10 +1375,11 @@ const hosts = [
   [
     'ibb.co:image',
     [
-      /!!((?<=href="|data-src="))https?:\/\/(www.)?([a-z](\d+)?\.)?ibb\.co\/([a-zA-Z0-9_.-]){7}((?=")|\/)(([a-zA-Z0-9_.-])+(?="))?/,
+      /!!(?<=href=")https?:\/\/(www.)?([a-z](\d+)?\.)?ibb\.co\/([a-zA-Z0-9_.-]){7}((?=")|\/)(([a-zA-Z0-9_.-])+(?="))?/,
       /ibb.co\/album\/[~an@_.-]+/,
     ],
   ],
+  ['i.ibb.co:direct link', [/!!(?<=data-src=")https?:\/\/(www.)?([a-z](\d+)?\.)?ibb\.co\/([a-zA-Z0-9_.-]){7}((?=")|\/)(([a-zA-Z0-9_.-])+(?="))?/]],
   ['imagevenue.com:image', [/!!https?:\/\/(www.)?imagevenue\.com\/(.{8})/]],
   ['imgvb:image', [/imgvb.com\/images\//, /imgvb.com\/album/]],
   ['imgbox.com:image', [/(thumbs|images)(\d+)?.imgbox.com\//, /imgbox.com\/g\//]],
@@ -1404,7 +1405,7 @@ const hosts = [
   ['redgifs.com:video', [/!!redgifs.com(\/|\\\/)ifr.*?(?="|&quot;)/]],
   ['gfycat.com:video', [/!!gfycat.com(\/|\\\/)ifr.*?(?="|&quot;)/]],
   [
-    'bunkr.su:',
+    'bunkr.la:',
     [
       /!!(?<=href=")https:\/\/((stream|cdn(\d+)?)\.)?bunkr.(ru|su|la).*?\.[a-zA-Z0-9]{3,4}.*?(?=")|(?<=(href="|src="))https:\/\/i(\d+)?.bunkr.(ru|su|la)\/(v\/)?.*?(?=")/,
       /bunkr.(ru|su|la)\/a\//,
@@ -1641,7 +1642,6 @@ const resolvers = [
       url
         .replace('.th.', '.')
         .replace('.md.', '.')
-        .replace(/simp([1-5])\.jpg\.church/, 'simp$1.jpg.fish'),
   ],
   [
     [/jpg.(church|fish|fishing)\/a\//i],
@@ -1715,7 +1715,6 @@ const resolvers = [
             url
               .replace('.md.', '.')
               .replace('.th.', '.')
-              .replace(/simp([1-5])\.jpg\.church/, 'simp$1.jpg.fish'),
           );
 
         const nextPage = dom.querySelector('a[data-pagination="next"]');
@@ -1739,12 +1738,18 @@ const resolvers = [
     },
   ],
   [
-    [/([a-z](\d+)?\.)?ibb.co\/[a-zA-Z0-9-_.]+/, /:!([a-z](\d+)?\.)?ibb.co\/album\/[a-zA-Z0-9_.-]+/],
-    async (url, http) => {
-      const { dom } = await http.get(url);
-      return dom.querySelector('.header-content-right > a').getAttribute('href');
-    },
+    [/\/\/ibb.co\/[a-zA-Z0-9-_.]+/, /:!([a-z](\d+)?\.)?ibb.co\/album\/[a-zA-Z0-9_.-]+/],
+      async (url, http) => {
+          try{
+              const { dom } = await http.get(url);
+              return dom.querySelector('.header-content-right > a').getAttribute('href');
+          } catch (err){
+              url => url;
+          }
+      },
   ],
+
+  [[/i\.ibb\.co\/[a-zA-Z0-9-_.]+/, /:!([a-z](\d+)?\.)?ibb.co\/album\/[a-zA-Z0-9_.-]+/], url => url],
   [
     [/([a-z](\d+)?\.)?ibb.co\/album\/[a-zA-Z0-9_.-]+/],
     async (url, http) => {
@@ -1910,14 +1915,14 @@ const resolvers = [
     },
   ],
   [
-    [/((stream|cdn(\d+)?)\.)?bunkr.(ru|su|la).*?\.[a-zA-Z0-9]{3,4}|i(\d+)?.bunkr.(ru|su|la)\/(v\/)?/i, /:!bunkr.(ru|su|la)\/a\//],
+    [/((stream|cdn(\d+)?)\.)?bunkr.(ru|la).*?\.[a-zA-Z0-9]{3,4}|i(\d+)?.bunkr.(ru|la)\/(v\/)?/i, /:!bunkr.(ru|la)\/a\//],
     async (url, http) => {
       url = url.replace('stream.bunkr', 'bunkr').replace(/cdn(\d+)?\.bunkr/, 'bunkr');
 
       const ext = h.ext(url).toLowerCase();
 
       if (settings.extensions.video.includes(`.${ext}`) && !h.contains('/v/', url)) {
-        url = url.replace(/(bunkr.(ru|su|la))\//, '$1/v/');
+        url = url.replace(/(bunkr.(ru|la))\//, 'bunkr.la/v/');
       }
 
       if (settings.extensions.image.includes(`.${ext}`)) {
@@ -1926,7 +1931,7 @@ const resolvers = [
       }
 
       if (['zip', 'pdf'].includes(ext) && !h.contains('/d/', url)) {
-        url = url.replace(/(bunkr.(ru|su|la))\//, '$1/d/');
+        url = url.replace(/(bunkr.(ru|la))\//, '$1/d/');
       }
 
       const { dom } = await http.get(url);
@@ -1939,7 +1944,7 @@ const resolvers = [
     },
   ],
   [
-    [/bunkr.(ru|su|la)\/a\//],
+    [/bunkr.(ru|la)\/a\//],
     async (url, http) => {
       const { dom, source } = await http.get(url);
 
@@ -3051,13 +3056,16 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
     while (batch.length) {
       for (const { url, host, original, folderName } of batch) {
         h.ui.setElProps(statusLabel, { fontWeight: 'normal' });
+          var reflink = original;
+          if (url.includes('bunkr')){
+              reflink = "https://bunkr.la"
+          }
         const ellipsedUrl = h.limit(url, 80);
-
         log.post.info(postId, `::Downloading::: ${url}`, postNumber);
         const request = GM_xmlhttpRequest({
           url,
           headers: {
-            Referer: original,
+            Referer: reflink,
           },
           responseType: 'blob',
           onreadystatechange: response => {
