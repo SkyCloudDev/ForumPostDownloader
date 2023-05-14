@@ -6,7 +6,7 @@
 // @author x111000111
 // @author backwards
 // @description Downloads images and videos from posts
-// @version 2.5.5
+// @version 2.5.6
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.jpg.church/simpcityIcon192.png
@@ -3311,6 +3311,10 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
         onerror: response => {
           console.log(`Error writing file to disk. There may be more details below.`);
           console.log(response);
+          console.log('Trying to write using JSZip...');
+          saveAs(blob, filename);
+          setProcessing(false, postId);
+          console.log('Done!');
         },
       });
     }
