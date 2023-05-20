@@ -6,7 +6,7 @@
 // @author x111000111
 // @author backwards
 // @description Downloads images and videos from posts
-// @version 2.5.7
+// @version 2.5.8
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.jpg.church/simpcityIcon192.png
@@ -51,6 +51,7 @@
 // @connect pixhost.to
 // @connect pixl.is
 // @connect pixl.li
+// @connect pomf2.lain.la
 // @connect pornhub.com
 // @connect postimg.cc
 // @connect imgvb.com
@@ -1394,6 +1395,7 @@ const hosts = [
   ['pinuderest.com:image', [/pinuderest.com\/wp-content\/.*?\.(jpg|jpeg|png)/]],
   ['imgur.com:image', [/\w+\.imgur.(com|io)/]],
   ['reddit.com:image', [/(\w+)?.redd.it/]],
+  ['pomf2.lain.la:File', [/pomf2.lain.la/]],
   ['instagram.com:Media', [/!!https:(\/|\\\/){2}s9e.github.io(\/|\\\/)iframe(\/|\\\/)2(\/|\\\/)instagram.*?(?="|&quot;)/]],
   ['instagram.com:Profile', [/!!instagram.com\/[~an@_.-]+|((instagram|insta):(\s+)?)@?[a-zA-Z0-9_.-]+/]],
   ['nitter:image', [/nitter\.(.{1,20})\/pic/]],
@@ -1526,6 +1528,7 @@ const resolvers = [
       };
     },
   ],
+  [[/pomf2.lain.la/], url => url.replace(/pomf2.lain.la\/f\/(.*)\.(\w{3,4})(\?.*)?/, 'pomf2.lain.la/f/$1.$2')],
   [[/coomer.party\/(data|thumbnail)/], url => url],
   [
     [/coomer.party/, /:!coomer.party\/(data|thumbnail)/],
@@ -3059,6 +3062,9 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
           var reflink = original;
           if (url.includes('bunkr')){
               reflink = "https://bunkr.la"
+          }
+          if (url.includes('pomf2')){
+              reflink = "https://pomf2.lain.la"
           }
         const ellipsedUrl = h.limit(url, 80);
         log.post.info(postId, `::Downloading::: ${url}`, postNumber);
