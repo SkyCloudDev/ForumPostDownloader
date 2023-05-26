@@ -6,7 +6,7 @@
 // @author x111000111
 // @author backwards
 // @description Downloads images and videos from posts
-// @version 2.5.9
+// @version 2.6.0
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.jpg.church/simpcityIcon192.png
@@ -1370,7 +1370,7 @@ const hosts = [
   ['anonfiles.com:', [/anonfiles.com/]],
   ['coomer.party:Profiles', [/coomer.party\/[~an@._-]+\/user/]],
   ['coomer.party:image', [/(\w+\.)?coomer.party\/(data|thumbnail)/]],
-  ['jpg.fishing:image', [/(simp\d+.)?jpg.(church|fish|fishing)\/(?!(images\/0fya082315al\.png|img\/|a\/))/, /jpg.(church|fish|fishing)\/a\/[~an@-_.]+<no_qs>/]],
+  ['jpg.fishing:image', [/(simp\d+.)?jpg.(church|fish|fishing)\/(?!(images\/0fya082315al\.png|img\/|a\/|album\/))/, /jpg.(church|fish|fishing)(\/a\/|\/album\/)[~an@-_.]+<no_qs>/]],
   ['kemono.party:direct link', [/.{2,6}\.kemono.party\/data\//]],
   ['postimg.cc:image', [/!!https?:\/\/(www.)?i\.?(postimg|pixxxels).cc\/(.{8})/]], //[/!!https?:\/\/(www.)?postimg.cc\/(.{8})/]],
   [
@@ -1647,7 +1647,7 @@ const resolvers = [
         .replace('.md.', '.')
   ],
   [
-    [/jpg.(church|fish|fishing)\/a\//i],
+    [/jpg.(church|fish|fishing)(\/a\/|\/album\/)/i],
     async (url, http, spoilers, postId) => {
       url = url.replace(/\?.*/, '');
 
@@ -1934,16 +1934,31 @@ const resolvers = [
       }
 
       if (['zip', 'pdf'].includes(ext) && !h.contains('/d/', url)) {
-        url = url.replace(/(bunkr.(ru|la))\//, '$1/d/');
+        url = url.replace(/(bunkr.(ru|la))\//, 'bunkr.la/d/');
+          console.log(url);
       }
 
-      const { dom } = await http.get(url);
+      if (['zip', 'pdf'].includes(ext)) {
+          console.log(url);
+          const { dom } = await http.get(url);
+          console.log(dom);
 
-      const btnDownload = dom.querySelector(
-        'body > main > section:nth-child(1) > div > div > div > div.w-full.px-0.lg\\:w-2\\/4 > div > a',
-      );
+          const btnDownload = dom.querySelector(
+              'body > main > section:nth-child(4) > div > div > div > div > div:nth-child(2) > a',
+          );
+          console.log(btnDownload);
 
-      return !btnDownload ? null : btnDownload.getAttribute('href');
+          return !btnDownload ? null : btnDownload.getAttribute('href');
+      }else{
+
+          const { dom } = await http.get(url);
+
+          const btnDownload = dom.querySelector(
+              'body > main > section:nth-child(1) > div > div > div > div.w-full.px-0.lg\\:w-2\\/4 > div > a',
+          );
+
+          return !btnDownload ? null : btnDownload.getAttribute('href');
+      }
     },
   ],
   [
@@ -2172,7 +2187,7 @@ const resolvers = [
       const resolveAlbum = async (url, spoilers) => {
         const contentId = url.split('/').reverse()[0];
 
-        const apiUrl = `https://api.gofile.io/getContent?contentId=${contentId}&token=${settings.hosts.goFile.token}&websiteToken=agh3456fg&cache=true`;
+        const apiUrl = `https://api.gofile.io/getContent?contentId=${contentId}&token=${settings.hosts.goFile.token}&websiteToken=7fd94ds12fds4&cache=true`;
 
         let { source } = await http.get(apiUrl);
 
