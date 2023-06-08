@@ -6,7 +6,7 @@
 // @author x111000111
 // @author backwards
 // @description Downloads images and videos from posts
-// @version 2.6.1
+// @version 2.6.2
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.jpg.church/simpcityIcon192.png
@@ -27,6 +27,7 @@
 // @connect github.com
 // @connect bunkr.ru
 // @connect bunkr.su
+// @connect bunkrr.su
 // @connect bunkr.la
 // @connect cyberdrop.me
 // @connect cyberdrop.cc
@@ -1408,10 +1409,10 @@ const hosts = [
   ['redgifs.com:video', [/!!redgifs.com(\/|\\\/)ifr.*?(?="|&quot;)/]],
   ['gfycat.com:video', [/!!gfycat.com(\/|\\\/)ifr.*?(?="|&quot;)/]],
   [
-    'bunkr.la:',
+    'bunkrr.su:',
     [
-      /!!(?<=href=")https:\/\/((stream|cdn(\d+)?)\.)?bunkr.(ru|su|la).*?\.[a-zA-Z0-9]{3,4}.*?(?=")|(?<=(href="|src="))https:\/\/i(\d+)?.bunkr.(ru|su|la)\/(v\/)?.*?(?=")/,
-      /bunkr.(ru|su|la)\/a\//,
+      /!!(?<=href=")https:\/\/((stream|cdn(\d+)?)\.)?bunkrr?\.(ru|su|la).*?\.[a-zA-Z0-9]{3,4}.*?(?=")|(?<=(href="|src="))https:\/\/i(\d+)?\.bunkrr?\.(ru|su|la)\/(v\/)?.*?(?=")/,
+      /bunkrr?\.(ru|su|la)\/a\//,
     ],
   ],
   ['give.xxx:Profiles', [/give.xxx\/[~an@_-]+/]],
@@ -1919,14 +1920,14 @@ const resolvers = [
     },
   ],
   [
-    [/((stream|cdn(\d+)?)\.)?bunkr.(ru|la).*?\.[a-zA-Z0-9]{3,4}|i(\d+)?.bunkr.(ru|la)\/(v\/)?/i, /:!bunkr.(ru|la)\/a\//],
+    [/((stream|cdn(\d+)?)\.)?bunkrr?\.(ru|su|la).*?\.[a-zA-Z0-9]{3,4}|i(\d+)?\.bunkrr?\.(ru|su|la)\/(v\/)?/i, /:!bunkrr?\.(ru|su|la)\/a\//],
     async (url, http) => {
       url = url.replace('stream.bunkr', 'bunkr').replace(/cdn(\d+)?\.bunkr/, 'bunkr');
 
       const ext = h.ext(url).toLowerCase();
 
       if (settings.extensions.video.includes(`.${ext}`) && !h.contains('/v/', url)) {
-        url = url.replace(/(bunkr.(ru|la))\//, 'bunkr.la/v/');
+        url = url.replace(/(bunkrr?\.(ru|su|la))\//, 'bunkrr.su/v/');
       }
 
       if (settings.extensions.image.includes(`.${ext}`)) {
@@ -1935,7 +1936,7 @@ const resolvers = [
       }
 
       if (['zip', 'pdf'].includes(ext) && !h.contains('/d/', url)) {
-        url = url.replace(/(bunkr.(ru|la))\//, 'bunkr.la/d/');
+        url = url.replace(/(bunkrr?\.(ru|su|la))\//, 'bunkrr.su/d/');
           console.log(url);
       }
 
@@ -1963,7 +1964,7 @@ const resolvers = [
     },
   ],
   [
-    [/bunkr.(ru|la)\/a\//],
+    [/bunkrr?\.(ru|su|la)\/a\//],
     async (url, http) => {
       const { dom, source } = await http.get(url);
 
@@ -3077,7 +3078,7 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
         h.ui.setElProps(statusLabel, { fontWeight: 'normal' });
           var reflink = original;
           if (url.includes('bunkr')){
-              reflink = "https://bunkr.la"
+              reflink = "https://bunkrr.su"
           }
           if (url.includes('pomf2')){
               reflink = "https://pomf2.lain.la"
