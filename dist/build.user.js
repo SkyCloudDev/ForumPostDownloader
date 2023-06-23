@@ -6,7 +6,7 @@
 // @author x111000111
 // @author backwards
 // @description Downloads images and videos from posts
-// @version 2.6.3
+// @version 2.6.4
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.jpg.church/simpcityIcon192.png
@@ -1942,27 +1942,23 @@ const resolvers = [
           console.log(url);
       }
 
-      if (['zip', 'pdf'].includes(ext)) {
-          console.log(url);
-          const { dom } = await http.get(url);
-          console.log(dom);
+        const { dom } = await http.get(url);
 
-          const btnDownload = dom.querySelector(
-              'body > main > section:nth-child(4) > div > div > div > div > div:nth-child(2) > a',
-          );
-          console.log(btnDownload);
+        const btnDownloadInit = dom.querySelector(
+            'body > main > section:nth-child(1) > div > div > div > div.w-full.px-0.lg\\:w-2\\/4 > div > a',
+        );
 
-          return !btnDownload ? null : btnDownload.getAttribute('href');
-      }else{
-
-          const { dom } = await http.get(url);
-
-          const btnDownload = dom.querySelector(
-              'body > main > section:nth-child(1) > div > div > div > div.w-full.px-0.lg\\:w-2\\/4 > div > a',
-          );
-
-          return !btnDownload ? null : btnDownload.getAttribute('href');
-      }
+        if (btnDownloadInit.getAttribute('href').includes('https://coindrop.to')){
+            const { dom } = await http.get(url);
+            const btnDownload2 = dom.querySelector(
+                'body > main > section:nth-child(4) > div > div > div > div > div:nth-child(2) > a',
+            );
+            console.log(btnDownload2);
+            var btnDownload = btnDownload2;
+        } else{
+            btnDownload = btnDownloadInit;
+        }
+        return !btnDownload ? null : btnDownload.getAttribute('href');
     },
   ],
   [
