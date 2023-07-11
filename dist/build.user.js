@@ -6,7 +6,7 @@
 // @author x111000111
 // @author backwards
 // @description Downloads images and videos from posts
-// @version 2.6.4
+// @version 2.6.5
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.jpg.church/simpcityIcon192.png
@@ -50,6 +50,7 @@
 // @connect jpg.fish
 // @connect jpg.fishing
 // @connect jpg.pet
+// @connect jpeg.pet
 // @connect imgbox.com
 // @connect pixhost.to
 // @connect pixl.is
@@ -1373,7 +1374,7 @@ const hosts = [
   ['anonfiles.com:', [/anonfiles.com/]],
   ['coomer.party:Profiles', [/coomer.party\/[~an@._-]+\/user/]],
   ['coomer.party:image', [/(\w+\.)?coomer.party\/(data|thumbnail)/]],
-  ['jpg.pet:image', [/(simp\d+.)?jpg.(church|fish|fishing|pet)\/(?!(images\/0fya082315al\.png|img\/|a\/|album\/))/, /jpg.(church|fish|fishing|pet)(\/a\/|\/album\/)[~an@-_.]+<no_qs>/]],
+  ['jpg.pet:image', [/(simp\d+.)?jpe?g.(church|fish|fishing|pet)\/(?!(images\/0fya082315al\.png|img\/|a\/|album\/))/, /jpe?g.(church|fish|fishing|pet)(\/a\/|\/album\/)[~an@-_.]+<no_qs>/]],
   ['kemono.party:direct link', [/.{2,6}\.kemono.party\/data\//]],
   ['postimg.cc:image', [/!!https?:\/\/(www.)?i\.?(postimg|pixxxels).cc\/(.{8})/]], //[/!!https?:\/\/(www.)?postimg.cc\/(.{8})/]],
   [
@@ -1643,14 +1644,14 @@ const resolvers = [
   ],
   [[/kemono.party\/data/], url => url],
   [
-    [/jpg.(church|fish|fishing|pet)\//i, /:!jpg.(church|fish|fishing|pet)\/a\//i],
+    [/jpe?g.(church|fish|fishing|pet)\//i, /:!jpe?g.(church|fish|fishing|pet)\/a\//i],
     url =>
       url
         .replace('.th.', '.')
         .replace('.md.', '.')
   ],
   [
-    [/jpg.(church|fish|fishing|pet)(\/a\/|\/album\/)/i],
+    [/jpe?g.(church|fish|fishing|pet)(\/a\/|\/album\/)/i],
     async (url, http, spoilers, postId) => {
       url = url.replace(/\?.*/, '');
 
@@ -1687,7 +1688,7 @@ const resolvers = [
             {},
             {
               Referer: url,
-              Origin: 'https://jpg.pet',
+              Origin: 'https://jpeg.pet',
               'Content-Type': 'application/x-www-form-urlencoded',
             },
           );
@@ -1709,7 +1710,7 @@ const resolvers = [
         }
 
         if (!authenticated) {
-          log.host.error(postId, `::Could not resolve password protected album::: ${url}`, 'jpg.pet');
+          log.host.error(postId, `::Could not resolve password protected album::: ${url}`, 'jpeg.pet');
           return null;
         }
       }
