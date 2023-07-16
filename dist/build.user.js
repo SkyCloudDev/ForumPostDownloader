@@ -6,7 +6,7 @@
 // @author x111000111
 // @author backwards
 // @description Downloads images and videos from posts
-// @version 2.6.5
+// @version 2.6.6
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.jpg.church/simpcityIcon192.png
@@ -740,7 +740,7 @@ const parsers = {
               return h.ucFirst(c);
             }
 
-            return 'Direct Links';
+            return 'Links';
           })[0];
 
           parsed.push({
@@ -1414,7 +1414,6 @@ const hosts = [
     'bunkrr.su:',
     [
       /!!(?<=href=")https:\/\/((stream|cdn(\d+)?)\.)?bunkrr?\.(ru|su|la|is).*?(?=")|(?<=(href=")|(src="))https:\/\/((i|cdn)(\d+)?\.)?bunkrr?\.(ru|su|la|is)\/(v\/)?.*?(?=")/,
-      /bunkrr?\.(ru|su|la|is)\/a\//,
     ],
   ],
   ['give.xxx:Profiles', [/give.xxx\/[~an@_-]+/]],
@@ -2004,7 +2003,10 @@ const resolvers = [
         .split('\n')
         .map(t => t.trim())
         .filter(t => t !== '');
-      const albumName = parts.length ? parts[0].trim() : url.split('/').reverse()[0];
+      const OrigAlbumName = parts.length ? parts[0].trim() : url.split('/').reverse()[0];
+        console.log("album name: " + OrigAlbumName);
+        const albumName = OrigAlbumName.replaceAll('/', '-');
+        console.log("New album name: " + albumName);
 
       return {
         dom,
