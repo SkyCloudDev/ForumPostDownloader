@@ -6,7 +6,7 @@
 // @author x111000111
 // @author backwards
 // @description Downloads images and videos from posts
-// @version 2.6.6
+// @version 2.6.7
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.jpg.church/simpcityIcon192.png
@@ -1643,7 +1643,7 @@ const resolvers = [
   ],
   [[/kemono.party\/data/], url => url],
   [
-    [/jpe?g.(church|fish|fishing|pet)\//i, /:!jpe?g.(church|fish|fishing|pet)\/a\//i],
+    [/jpe?g.(church|fish|fishing|pet)\//i, /:!jpe?g.(church|fish|fishing|pet)(\/a\/|\/album\/)/i],
     url =>
       url
         .replace('.th.', '.')
