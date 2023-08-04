@@ -6,7 +6,7 @@
 // @author x111000111
 // @author backwards
 // @description Downloads images and videos from posts
-// @version 2.6.7
+// @version 2.6.8
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.jpg.church/simpcityIcon192.png
@@ -1374,7 +1374,7 @@ const hosts = [
   ['anonfiles.com:', [/anonfiles.com/]],
   ['coomer.party:Profiles', [/coomer.party\/[~an@._-]+\/user/]],
   ['coomer.party:image', [/(\w+\.)?coomer.party\/(data|thumbnail)/]],
-  ['jpg.pet:image', [/(simp\d+.)?jpe?g.(church|fish|fishing|pet)\/(?!(images\/0fya082315al\.png|img\/|a\/|album\/))/, /jpe?g.(church|fish|fishing|pet)(\/a\/|\/album\/)[~an@-_.]+<no_qs>/]],
+  ['jpg.pet:image', [/(simp\d+.)?jpe?g.(church|fish|fishing|pet)\/(?!(images2\/0fya082315al2ed460420dbc052c2\.png|images\/0fya082315al\.png|img\/|a\/|album\/))/, /jpe?g.(church|fish|fishing|pet)(\/a\/|\/album\/)[~an@-_.]+<no_qs>/]],
   ['kemono.party:direct link', [/.{2,6}\.kemono.party\/data\//]],
   ['postimg.cc:image', [/!!https?:\/\/(www.)?i\.?(postimg|pixxxels).cc\/(.{8})/]], //[/!!https?:\/\/(www.)?postimg.cc\/(.{8})/]],
   [
