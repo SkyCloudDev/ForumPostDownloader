@@ -6,7 +6,7 @@
 // @author x111000111
 // @author backwards
 // @description Downloads images and videos from posts
-// @version 2.6.9
+// @version 2.7.0
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.jpg.church/simpcityIcon192.png
@@ -25,6 +25,8 @@
 // @connect boxcloud.com
 // @connect kemono.party
 // @connect github.com
+// @connect big-taco-1img.bunkr.ru
+// @connect i-pizza.bunkr.ru
 // @connect bunkr.ru
 // @connect bunkr.su
 // @connect bunkrr.su
@@ -1414,7 +1416,7 @@ const hosts = [
   [
     'bunkrr.su:',
     [
-      /!!(?<=href=")https:\/\/((stream|cdn(\d+)?)\.)?bunkrr?\.(ru|su|la|is).*?(?=")|(?<=(href=")|(src="))https:\/\/((i|cdn)(\d+)?\.)?bunkrr?\.(ru|su|la|is)\/(v\/)?.*?(?=")/,
+      /!!(?<=href=")https:\/\/((stream|cdn(\d+)?)\.)?bunkrr?\.(ru|su|la|is).*?(?=")|(?<=(href=")|(src="))https:\/\/((i|cdn|i-pizza|big-taco-1img)(\d+)?\.)?bunkrr?\.(ru|su|la|is)\/(v\/)?.*?(?=")/,
     ],
   ],
   ['give.xxx:Profiles', [/give.xxx\/[~an@_-]+/]],
