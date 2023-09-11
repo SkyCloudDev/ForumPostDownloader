@@ -6,7 +6,7 @@
 // @author x111000111
 // @author backwards
 // @description Downloads images and videos from posts
-// @version 2.7.0
+// @version 2.7.1
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.jpg.church/simpcityIcon192.png
@@ -1972,21 +1972,28 @@ const resolvers = [
       const files = [...dom.querySelectorAll('.grid-images > div')].map(f => {
         const a = f.querySelector('a');
         const img = f.querySelector('a > img');
-        const url = `https://bunkr.la${a.getAttribute('href')}`;
+        let url = `https://bunkrr.su${a.getAttribute('href')}`;
+        let name = h.basename(url);
 
         const src = img?.getAttribute('src');
+
+        const imageExtension = src ? h.ext(src) : null;
+
+        if (src && imageExtension && settings.extensions.image.includes(`.${imageExtension}`)) {
+          name = h.basename(src).replace('.png', '.jpg');
+        }
 
         let cdn = null;
 
         if (src) {
-          const matches = /i((\d+)?).bunkr/i.exec(src);
+          const matches = /i((-)?([a-zA-Z0-9-]+))?\.bunkr/i.exec(src);
           if (matches && matches.length) {
-            cdn = matches[1];
+            cdn = matches[3];
           }
         }
 
         return {
-          name: h.basename(url),
+          name,
           url,
           cdn,
           img: src,
@@ -1994,7 +2001,9 @@ const resolvers = [
       });
 
       const resolved = files.map(file => {
-        let host = `https://media-files${file.cdn}.bunkr.ru`;
+        const fileCDN = file.cdn || '';
+        const cdn = fileCDN.includes('pizza') ? 'pizza' : `media-files${fileCDN}`;
+        let host = `https://${cdn}.bunkr.ru`;
         if (h.contains('media-files12', host)) {
           host = host.replace('.bunkr.ru', '.bunkr.la');
         }
@@ -2007,9 +2016,7 @@ const resolvers = [
         .map(t => t.trim())
         .filter(t => t !== '');
       const OrigAlbumName = parts.length ? parts[0].trim() : url.split('/').reverse()[0];
-        console.log("album name: " + OrigAlbumName);
-        const albumName = OrigAlbumName.replaceAll('/', '-');
-        console.log("New album name: " + albumName);
+      const albumName = OrigAlbumName.replaceAll('/', '-');
 
       return {
         dom,
