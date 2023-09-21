@@ -6,7 +6,7 @@
 // @author x111000111
 // @author backwards
 // @description Downloads images and videos from posts
-// @version 2.7.3
+// @version 2.7.4
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.jpg.church/simpcityIcon192.png
@@ -1928,40 +1928,40 @@ const resolvers = [
     [/((stream|cdn(\d+)?)\.)?bunkrr?\.(ru|su|la|is).*?\.|((i|cdn)(\d+)?\.)?bunkrr?\.(ru|su|la|is)\/(v\/)?/i, /:!bunkrr?\.(ru|su|la|is)\/a\//],
     async (url, http) => {
 
-      const ext = h.ext(url).toLowerCase();
+        const ext = h.ext(url).toLowerCase();
 
-      if (settings.extensions.image.includes(`.${ext}`)) {
-        url = url.replace(/cdn(\d+)?/, 'i$1');
-        return url;
-      }
+        if (settings.extensions.image.includes(`.${ext}`)) {
+            url = url.replace(/cdn(\d+)?/, 'i$1');
+            return url;
+        }
 
-      if (settings.extensions.video.includes(`.${ext}`) && !h.contains('/v/', url)) {
-        url = url.replace(/(bunkrr?\.(ru|su|la|is))\//, 'bunkrr.su/v/');
-      }
+        if (settings.extensions.video.includes(`.${ext}`) && !h.contains('/v/', url)) {
+            url = url.replace(/(bunkrr?\.(ru|su|la|is))\//, 'bunkrr.su/v/');
+        }
 
-      url = url.replace('stream.bunkr', 'bunkr').replace(/cdn(\d+)?\.bunkr/, 'bunkr');
+        url = url.replace('stream.bunkr', 'bunkr').replace(/cdn(\d+)?\.bunkr/, 'bunkr');
 
-      if (['zip', 'pdf'].includes(ext) && !h.contains('/d/', url)) {
-        url = url.replace(/(bunkrr?\.(ru|su|la|is))\//, 'bunkrr.su/d/');
-          console.log(url);
-      }
+        if (['zip', 'pdf'].includes(ext) && !h.contains('/d/', url)) {
+            url = url.replace(/(bunkrr?\.(ru|su|la|is))\//, 'bunkrr.su/d/');
+        }
 
         const { dom } = await http.get(url);
 
-        const btnDownloadInit = dom.querySelector(
-            'body > main > section:nth-child(1) > div > div > div > div.w-full.px-0.lg\\:w-2\\/4 > div > a',
-        );
+        let btnDownloadInit = null;
 
-        if (btnDownloadInit.getAttribute('href').includes('https://coindrop.to')){
+        /* This gets a vid */
+        btnDownloadInit = dom.querySelector('body > main > section > div > div > div > div:nth-child(2) > div > a',);
+
+
+        if (btnDownloadInit.getAttribute('href').includes('report')){
             const { dom } = await http.get(url);
-            const btnDownload2 = dom.querySelector(
-                'body > main > section:nth-child(4) > div > div > div > div > div:nth-child(2) > a',
-            );
-            console.log(btnDownload2);
+            /* This gets a zip, rar or pdf */
+            const btnDownload2 = dom.querySelector('body > main > section.py-8-xyz > div > div > div > div > div:nth-child(2) > a',);
             var btnDownload = btnDownload2;
         } else{
             btnDownload = btnDownloadInit;
         }
+
         return !btnDownload ? null : btnDownload.getAttribute('href');
     },
   ],
@@ -1975,7 +1975,7 @@ const resolvers = [
               const img = f.querySelector('a > img');
               let url = `https://bunkrr.su${a.getAttribute('href')}`;
               if (url.includes('/d/')){
-                  /* send a request, copy shit from earlier in script for individual links */
+                  /* Insert zip, rar, pdf downloads here */
               };
               const videoname = f.getElementsByTagName('p')[0].innerHTML;
               const filename = videoname.split('.').slice(0, -1).join('.');
@@ -2007,7 +2007,6 @@ const resolvers = [
 
       const resolved = files.map(file => {
         const fileCDN = file.cdn || '';
-          console.log("file CDN: " + fileCDN);
         const cdn = fileCDN.includes('4') ? `i${fileCDN}` : fileCDN ;
         let host = `https://${cdn}.bunkr.ru`;
         if (h.contains('media-files12', host)) {
