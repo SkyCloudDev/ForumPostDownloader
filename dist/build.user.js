@@ -6,7 +6,7 @@
 // @author x111000111
 // @author backwards
 // @description Downloads images and videos from posts
-// @version 2.7.2
+// @version 2.7.3
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.jpg.church/simpcityIcon192.png
@@ -1967,43 +1967,48 @@ const resolvers = [
   ],
   [
     [/bunkrr?\.(ru|su|la)\/a\//],
-    async (url, http) => {
-      const { dom, source } = await http.get(url);
+      async (url, http) => {
+          const { dom, source } = await http.get(url);
 
-      const files = [...dom.querySelectorAll('.grid-images > div')].map(f => {
-        const a = f.querySelector('a');
-        const img = f.querySelector('a > img');
-        let url = `https://bunkrr.su${a.getAttribute('href')}`;
-        let name = h.basename(url);
+          const files = [...dom.querySelectorAll('.grid-images > div')].map(f => {
+              const a = f.querySelector('a');
+              const img = f.querySelector('a > img');
+              let url = `https://bunkrr.su${a.getAttribute('href')}`;
+              if (url.includes('/d/')){
+                  /* send a request, copy shit from earlier in script for individual links */
+              };
+              const videoname = f.getElementsByTagName('p')[0].innerHTML;
+              const filename = videoname.split('.').slice(0, -1).join('.');
+              const extension = videoname.split('.').pop();
 
-        const src = img?.getAttribute('src');
+              const ID = img?.getAttribute('src').split('.').slice(0, -1).join('.').split('-').pop();
 
-        const imageExtension = src ? h.ext(src) : null;
+              url = "https://temp.bunkr.ru/"+filename+"-"+ID+"."+extension;
 
-        if (src && imageExtension && settings.extensions.image.includes(`.${imageExtension}`)) {
-          name = h.basename(src).replace('.png', '.jpg');
-        }
+              let name = h.basename(url).replaceAll(" ", "-");
 
-        let cdn = null;
+              let cdn = null;
 
-        if (src) {
-          const matches = /i((-)?([a-zA-Z0-9-]+))?\.bunkr/i.exec(src);
-          if (matches && matches.length) {
-            cdn = matches[3];
-          }
-        }
+              const src = img?.getAttribute('src');
+              if (src) {
+                  const matches = /i((-)?([a-zA-Z0-9-]+))?\.bunkr/i.exec(src);
+                  if (matches && matches.length) {
+                      cdn = matches[3];
+                  }
+              }
 
-        return {
-          name,
-          url,
-          cdn,
-          img: src,
-        };
-      });
+              return {
+                  name,
+                  url,
+                  cdn,
+                  img: src,
+              };
+          });
 
       const resolved = files.map(file => {
         const fileCDN = file.cdn || '';
-        const cdn = fileCDN.includes('pizza') ? 'pizza' : `media-files${fileCDN}`;
+          console.log("file CDN: " + fileCDN);
+        const cdn = fileCDN.includes('4') ? `i${fileCDN}` : fileCDN ;
         let host = `https://${cdn}.bunkr.ru`;
         if (h.contains('media-files12', host)) {
           host = host.replace('.bunkr.ru', '.bunkr.la');
