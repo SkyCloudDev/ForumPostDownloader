@@ -6,7 +6,7 @@
 // @author x111000111
 // @author backwards
 // @description Downloads images and videos from posts
-// @version 2.7.6
+// @version 2.7.7
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.jpg.church/simpcityIcon192.png
@@ -34,6 +34,8 @@
 // @connect bunkr.is
 // @connect cyberdrop.me
 // @connect cyberdrop.cc
+// @connect cyberdrop.ch
+// @connect cyberdrop.cloud
 // @connect cyberdrop.nl
 // @connect cyberdrop.to
 // @connect cyberfile.su
@@ -2499,9 +2501,22 @@ const resolvers = [
     [/cyberdrop.me\/a\//],
     async (url, http) => {
       const { source, dom } = await http.get(url);
+      let resolved =[];
 
-      let resolved = [...dom?.querySelectorAll('#file')].map(file => file.getAttribute('href').replace(/fs-\d+/is, 'fs-01'));
+      let files = [...dom?.querySelectorAll('#file')].map(file =>"https://cyberdrop.me/api" + file.getAttribute('href'));
 
+      for (let index = 0; index < files.length; index++) {
+            const file = files[index]
+            await GM.xmlHttpRequest({
+                method: "GET",
+                url: file,
+                onload: function(response) {
+                    console.log(JSON.parse(response.responseText));
+                    const webData = JSON.parse(response.responseText);
+                    resolved.push(webData.url);
+                }
+            });
+        }
       return {
         dom,
         source,
@@ -3168,6 +3183,8 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
                     .basename(url)
                     .replace(/(.*)\?f=(.*)/, '$2')
                     .replace('%20', ' ');
+            } else if (url.includes('cyberdrop')) {
+                basename = response.responseHeaders.match(/^content-disposition.+filename=(.+)$/im)[1].replace(/"/g, '');
             } else {
               basename = filename ? filename.name : h.basename(url).replace(/\?.*/, '').replace(/#.*/, '');
             }
