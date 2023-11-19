@@ -6,7 +6,7 @@
 // @author x111000111
 // @author backwards
 // @description Downloads images and videos from posts
-// @version 2.7.5
+// @version 2.7.6
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.jpg.church/simpcityIcon192.png
@@ -1978,13 +1978,10 @@ const resolvers = [
               if (url.includes('/d/')){
                   /* Insert zip, rar, pdf downloads here */
               };
-              const videoname = f.getElementsByTagName('p')[0].innerHTML;
-              const filename = videoname.split('.').slice(0, -1).join('.');
-              const extension = videoname.split('.').pop();
+              const extension = f.getElementsByTagName('p')[0].innerHTML.split('.').pop();
+              const filename = img?.getAttribute('src').split("/").pop().split('.').slice(0, -1).pop();
 
-              const ID = img?.getAttribute('src').split('.').slice(0, -1).join('.').split('-').pop();
-
-              url = "https://temp.bunkr.ru/"+filename+"-"+ID+"."+extension;
+              url = "https://temp.bunkr.ru/"+filename+"."+extension;
 
               let name = h.basename(url).replaceAll(" ", "-");
 
