@@ -2383,6 +2383,7 @@ const resolvers = [
         async (url, http) => {
             const { source, dom } = await http.get(url);
             let resolved =[];
+            let error_resolved = false;
             let files = [...dom?.querySelectorAll('#file')].map(file =>"https://cyberdrop.me/api" + file.getAttribute('href'));
             for (let index = 0; index < files.length; index++) {
                 const file = files[index];
@@ -2390,12 +2391,20 @@ const resolvers = [
                     method: "GET",
                     url: file,
                     onload: function(response) {
+                        if (response.status == 200) {
                         const webData = JSON.parse(response.responseText);
-                        console.log(webData);
-                        resolved.push(webData.url);
+                        dl_url = webData.url;
+                        resolved.push(dl_url);
+                        } else {
+                            error_resolved = true;
+                        }
                     }
                 });
-                await new Promise(resolve => setTimeout(resolve, 3500));
+                if (error_resolved == true)
+                {   
+                    resolved.push( await cyperdrop_helper(file));
+                    error_resolved = false;
+                }
             }
             return {
                 dom,
@@ -2994,6 +3003,7 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
                         const filename = filenames.find(f => f.url === url);
 
                         let basename;
+                        console.log(response.responseHeaders);
 
                         if (url.includes('https://pixeldrain.com/')) {
                             basename = response.responseHeaders.match(/^content-disposition.+filename=(.+)$/im)[1].replace(/"/g, '');
@@ -3008,6 +3018,9 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
                                 .replace('%20', ' ');
                         } else if (url.includes('cyberdrop')) {
                             basename = response.responseHeaders.match(/^content-disposition.+filename=(.+)$/im)[1].replace(/"/g, '');
+                            basename = decodeURI(basename);
+                            let basename_ext = basename.match(/.\w{3,6}$/);
+                            basename = basename.replace(basename_ext,"").replace(/(\.\w{3,6}-\w{8}$)|(-\w{8}$)/,"") + basename_ext;
                         } else {
                             basename = filename ? filename.name : h.basename(url).replace(/\?.*/, '').replace(/#.*/, '');
                         }
@@ -3303,6 +3316,31 @@ const registerPostReaction = postFooter => {
   }
 };
 
+async function cyperdrop_helper(file) {
+
+    let error_resolved = false;
+    await new Promise(resolve => setTimeout(resolve, 3500));
+    await GM.xmlHttpRequest({
+        method: "GET",
+        url: file,
+        onload: async function(response) {
+            if (response.status == 200) {
+            const webData = JSON.parse(response.responseText);
+            url_dl = webData.url;
+            } else {
+                error_resolved = true;
+            }
+        }
+    });
+    if (error_resolved == true)
+    {   
+        console.log("more tries");  
+        url_dl = await cyperdrop_helper(file);
+        error_resolved = false;
+    }
+      
+    return url_dl;
+  }
 
 const parsedPosts = [];
 const selectedPosts = [];
