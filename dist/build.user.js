@@ -2381,6 +2381,7 @@ const resolvers = [
         async (url, http) => {
             const { source, dom } = await http.get(url);
             let resolved =[];
+            let dl_url;
             let error_resolved = false;
             let files = [...dom?.querySelectorAll('#file')].map(file =>"https://cyberdrop.me/api" + file.getAttribute('href'));
             for (let index = 0; index < files.length; index++) {
@@ -2400,7 +2401,7 @@ const resolvers = [
                 });
                 if (error_resolved == true)
                 {   
-                    resolved.push( await cyperdrop_helper(file));
+                    resolved.push( await cyberdrop_helper(file));
                     error_resolved = false;
                 }
             }
@@ -3319,8 +3320,8 @@ const registerPostReaction = postFooter => {
   }
 };
 
-async function cyperdrop_helper(file) {
-
+async function cyberdrop_helper(file) {
+    let url_dl;
     let error_resolved = false;
     await new Promise(resolve => setTimeout(resolve, 3500));
     await GM.xmlHttpRequest({
@@ -3338,7 +3339,7 @@ async function cyperdrop_helper(file) {
     if (error_resolved == true)
     {   
         console.log("more tries");  
-        url_dl = await cyperdrop_helper(file);
+        url_dl = await cyberdrop_helper(file);
         error_resolved = false;
     }
       
