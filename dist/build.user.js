@@ -6,7 +6,7 @@
 // @author x111000111
 // @author backwards
 // @description Downloads images and videos from posts
-// @version 2.7.8
+// @version 2.7.9
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.jpg.church/simpcityIcon192.png
@@ -593,7 +593,7 @@ const parsers = {
      * @returns {{pageNumber: string, post, spoilers: *, footer: HTMLElement, contentContainer: Element, textContent: (*|string|string), postId: string, postNumber: string, content: (*|string|string|string)}}
      */
         parsePost: post => {
-            const messageContent = post.parentNode.parentNode.querySelector('.message-content > .message-userContent > .message-body');
+            const messageContent = post.parentNode.parentNode.querySelector('.message-content > .message-userContent');
             const footer = post.parentNode.parentNode.querySelector('footer');
             const messageContentClone = messageContent.cloneNode(true);
 
@@ -704,9 +704,7 @@ const parsers = {
                         pattern = pattern.replace('!!', '');
                         pattern = h.re.toRegExp(h.re.toString(pattern), 'igs');
                     } else {
-                        const pat = `(?<=data-url="|src="|href=")https?:\/\/(www.)?${h.re.toString(pattern)}.*?(?=")|https?:\/\/(www.)?${h.re.toString(
-                            pattern,
-                        )}.*?(?=("|<|$|\]|'))`;
+                        const pat = `(?<=data-url="|src="|href=")${h.re.toString(pattern)}.*?(?=")|https?:\/\/(www.)?${h.re.toString(pattern)}.*?(?=("|<|$|\]|'))`;
                         pattern = h.re.toRegExp(pat, 'igs');
                     }
 
@@ -1368,7 +1366,7 @@ let processing = [];
  *
  */
 const hosts = [
-    ['simpcity.su:Attachments', [/simpcity.su\/attachments/]],
+    ['simpcity.su:Attachments', [/(\/attachments\/|\/data\/video\/)/]],
     ['coomer.party:Profiles', [/coomer.party\/[~an@._-]+\/user/]],
     ['coomer.party:image', [/(\w+\.)?coomer.party\/(data|thumbnail)/]],
     ['jpg3.su:image', [/(simp\d+.)?jpe?g.?\.(church|fish|fishing|pet|su)\/(?!(images2\/0fya082315al2ed460420dbc052c2\.png|images2\/scc49c36a108cefc020\.png|images\/0fya082315al\.png|img\/|a\/|album\/))/, /jpe?g.?\.(church|fish|fishing|pet|su)(\/a\/|\/album\/)[~an@-_.]+<no_qs>/]],
@@ -2512,7 +2510,13 @@ const resolvers = [
             };
         },
     ],
-    [[/simpcity.su\/attachments/], url => url],
+    [
+        [/(\/attachments\/|\/data\/video\/)/],
+            async (url) => {
+                url = url.replace('/attachments/', 'https://simpcity.su/attachments/').replace('/data/video/', 'https://simpcity.su/data/video/')
+            return url;
+        },
+    ],
     [[/(thumbs|images)(\d+)?.imgbox.com\//, /:!imgbox.com\/g\//], url => url.replace(/_t\./gi, '_o.').replace(/thumbs/i, 'images')],
     [
         [/imgbox.com\/g\//],
@@ -3003,7 +3007,6 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
                         const filename = filenames.find(f => f.url === url);
 
                         let basename;
-                        console.log(response.responseHeaders);
 
                         if (url.includes('https://pixeldrain.com/')) {
                             basename = response.responseHeaders.match(/^content-disposition.+filename=(.+)$/im)[1].replace(/"/g, '');
