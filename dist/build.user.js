@@ -1409,7 +1409,7 @@ const hosts = [
     ['box.com:', [/m\.box\.com\//]],
     ['yandex.ru:', [/(disk\.)?yandex\.[a-z]+/]],
     ['cyberfile.me:', [/!!https:\/\/cyberfile.(su|me)\/\w+(\/)?(?=")/, /cyberfile.(su|me)\/folder\//]],
-    ['cyberdrop.me:', [/fs-\d+.cyberdrop.(me|to|cc|nl)\/|cyberdrop.me\/f\//, /cyberdrop.(me|to|cc|nl)\/a\//]],
+    ['cyberdrop.me:', [/fs-\d+.cyberdrop.(me|to|cc|nl)\/|cyberdrop.me\/(f|e)\//, /cyberdrop.(me|to|cc|nl)\/a\//]],
     ['pornhub.com:video', [/([~an@]+\.)?pornhub.com\/view_video/]],
     ['noodlemagazine.com:video', [/(adult.)?noodlemagazine.com\/watch\//]],
     ['spankbang.com:video', [/spankbang.com\/.*?\/video/]],
@@ -1876,7 +1876,7 @@ const resolvers = [
                 };
                 const extension = f.getElementsByTagName('p')[0].innerHTML.split('.').pop();
                 const filename = img?.getAttribute('src').split("/").pop().split('.').slice(0, -1).join(".");
-                
+
                 url = "https://temp.bunkr.ru/"+filename+"."+extension;
 
                 let name = h.basename(url).replaceAll(" ", "-");
@@ -2350,7 +2350,7 @@ const resolvers = [
         },
     ],
     [
-        [/fs-\d+.cyberdrop.(me|to|cc|nl)\/|cyberdrop.me\/f\//, /:!cyberdrop.(me|to|cc|nl)\/a\//],
+        [/fs-\d+.cyberdrop.(me|to|cc|nl)\/|cyberdrop.me\/(f|e)\//, /:!cyberdrop.(me|to|cc|nl)\/a\//],
         async (url) => {
             let resolved ="";
             if (url.includes('fs-')){
@@ -2364,7 +2364,7 @@ const resolvers = [
                     },
                 });
             };
-            url = url.replace('cyberdrop.me','https://cyberdrop.me/api');
+            url = url.replace('cyberdrop.me/f','https://cyberdrop.me/api/f').replace('cyberdrop.me/e','https://cyberdrop.me/api/f');
             await GM.xmlHttpRequest({
                 method: "GET",
                 url: url,
