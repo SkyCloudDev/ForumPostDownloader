@@ -6,7 +6,7 @@
 // @author x111000111
 // @author backwards
 // @description Downloads images and videos from posts
-// @version 2.7.9
+// @version 2.8.0
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.jpg.church/simpcityIcon192.png
@@ -54,6 +54,7 @@
 // @connect jpg1.su
 // @connect jpg2.su
 // @connect jpg3.su
+// @connect jpg4.su
 // @connect imgbox.com
 // @connect pixhost.to
 // @connect pixl.is
@@ -1369,7 +1370,7 @@ const hosts = [
     ['simpcity.su:Attachments', [/(\/attachments\/|\/data\/video\/)/]],
     ['coomer.party:Profiles', [/coomer.party\/[~an@._-]+\/user/]],
     ['coomer.party:image', [/(\w+\.)?coomer.party\/(data|thumbnail)/]],
-    ['jpg3.su:image', [/(simp\d+.)?jpe?g.?\.(church|fish|fishing|pet|su)\/(?!(images2\/0fya082315al2ed460420dbc052c2\.png|images2\/scc49c36a108cefc020\.png|images\/0fya082315al\.png|img\/|a\/|album\/))/, /jpe?g.?\.(church|fish|fishing|pet|su)(\/a\/|\/album\/)[~an@-_.]+<no_qs>/]],
+    ['jpg4.su:image', [/(simp\d+.)?jpe?g.?\.(church|fish|fishing|pet|su)\/(?!(images2\/0fya082315al2ed460420dbc052c2\.png|images2\/scc49c36a108cefc020\.png|images\/0fya082315al\.png|img\/|a\/|album\/))/, /jpe?g.?\.(church|fish|fishing|pet|su)(\/a\/|\/album\/)[~an@-_.]+<no_qs>/]],
     ['kemono.party:direct link', [/.{2,6}\.kemono.party\/data\//]],
     ['postimg.cc:image', [/!!https?:\/\/(www.)?i\.?(postimg|pixxxels).cc\/(.{8})/]], //[/!!https?:\/\/(www.)?postimg.cc\/(.{8})/]],
     [
@@ -1588,7 +1589,7 @@ const resolvers = [
                         {},
                         {
                             Referer: url,
-                            Origin: 'https://jpg3.su',
+                            Origin: 'https://jpg4.su',
                             'Content-Type': 'application/x-www-form-urlencoded',
                         },
                     );
@@ -1610,7 +1611,7 @@ const resolvers = [
                 }
 
                 if (!authenticated) {
-                    log.host.error(postId, `::Could not resolve password protected album::: ${url}`, 'jpg3.su');
+                    log.host.error(postId, `::Could not resolve password protected album::: ${url}`, 'jpg4.su');
                     return null;
                 }
             }
@@ -3319,6 +3320,7 @@ const registerPostReaction = postFooter => {
     }
   }
 };
+
 
 async function cyberdrop_helper(file) {
     let url_dl;
