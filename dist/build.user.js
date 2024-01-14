@@ -6,7 +6,7 @@
 // @author x111000111
 // @author backwards
 // @description Downloads images and videos from posts
-// @version 2.8.1
+// @version 2.8.2
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.jpg.church/simpcityIcon192.png
@@ -58,8 +58,6 @@
 // @connect jpg4.su
 // @connect imgbox.com
 // @connect pixhost.to
-// @connect pixl.is
-// @connect pixl.li
 // @connect pomf2.lain.la
 // @connect pornhub.com
 // @connect postimg.cc
@@ -1394,13 +1392,12 @@ const hosts = [
     ['instagram.com:Profile', [/!!instagram.com\/[~an@_.-]+|((instagram|insta):(\s+)?)@?[a-zA-Z0-9_.-]+/]],
     ['nitter:image', [/nitter\.(.{1,20})\/pic/]],
     ['twitter.com:image', [/([~an@.]+)?twimg.com\//]],
-    ['pixl.li:image', [/([a-z](\d+)?\.)pixl.(li|is)\/((img|image)\/)?/, /pixl.(li|is)\/album\//]],
     ['pixhost.to:image', [/t(\d+)?\.pixhost.to\//, /pixhost.to\/gallery\//]],
     ['imagebam.com:image', [/imagebam.com\/(view|gallery)/]],
     ['saint.to:video', [/(saint.to\/embed\/|([~an@]+\.)?saint.to\/videos)/]],
     ['redgifs.com:video', [/!!redgifs.com(\/|\\\/)ifr.*?(?="|&quot;)/]],
     [
-        'bunkrr.su:',
+        'bunkrr.ru:',
         [
             /!!(?<=href=")https:\/\/((stream|cdn(\d+)?)\.)?bunkrr?\.(ru|su|la|is).*?(?=")|(?<=(href=")|(src="))https:\/\/((i|cdn|i-pizza|big-taco-1img)(\d+)?\.)?bunkrr?\.(ru|su|la|is)\/(v\/)?.*?(?=")/,
         ],
@@ -1715,90 +1712,6 @@ const resolvers = [
             };
         },
     ],
-    [[/([a-z](\d+)?\.)pixl.(li|is)\/((img|image)\/)?/, /:!pixl.(li|is)\/album\//], url => url.replace('.th.', '.').replace('.md.', '.')],
-    [
-        [/pixl.(li|is)\/(album)\//],
-        async (url, http, spoilers, postId) => {
-            let reFetch = false;
-
-            let { source, dom } = await http.get(url, {
-                onStateChange: response => {
-                    // If it's a redirect, we'll have to fetch the new url.
-                    if (response.readyState === 2 && response.finalUrl !== url) {
-                        url = response.finalUrl;
-                        reFetch = true;
-                    }
-                },
-            });
-
-            if (reFetch) {
-                const { source: src, dom: d } = await http.get(url);
-                source = src;
-                dom = d;
-            }
-
-            if (h.contains('Please enter your password to continue', source)) {
-                const authTokenNode = dom.querySelector('input[name="auth_token"]');
-                const authToken = !authTokenNode ? null : authTokenNode.getAttribute('value');
-
-                if (!authToken || !spoilers || !spoilers.length) {
-                    return null;
-                }
-
-                const attemptWithPassword = async password => {
-                    const { source, dom } = await http.post(
-                        url,
-                        `auth_token=${authToken}&content-password=${password}`,
-                        {},
-                        {
-                            'Content-Type': 'application/x-www-form-urlencoded',
-                        },
-                    );
-                    return { source, dom };
-                };
-
-                let authenticated = false;
-
-                for (const spoiler of spoilers) {
-                    const { source: src, dom: d } = await attemptWithPassword(spoiler.trim());
-                    if (!h.contains('Please enter your password to continue', src)) {
-                        authenticated = true;
-                        source = src;
-                        dom = d;
-                        break;
-                    }
-                }
-
-                if (!authenticated) {
-                    log.host.error(postId, `::Could not resolve password protected album::: ${url}`, 'pixl.li');
-                    return null;
-                }
-            }
-
-            const extractImages = dom => {
-                return [...dom.querySelectorAll('.image-container > img')]
-                    .map(img => img.getAttribute('src'))
-                    .map(url => url.replace('.th.', '.').replace('.md.', '.'));
-            };
-
-            let resolved = extractImages(dom);
-
-            let nextPage = dom.querySelector('.pagination-next > a')?.getAttribute('href');
-
-            while (nextPage) {
-                const { dom } = await http.get(nextPage);
-                resolved = resolved.concat(extractImages(dom));
-                nextPage = dom.querySelector('.pagination-next > a')?.getAttribute('href');
-            }
-
-            return {
-                dom,
-                source,
-                folderName: dom.querySelector('meta[property="og:title"]').content.trim(),
-                resolved,
-            };
-        },
-    ],
     [[/t(\d+)?\.pixhost.to\//, /:!pixhost.to\/gallery\//], url => url.replace(/t(\d+)\./gi, 'img$1.').replace(/thumbs\//i, 'images/')],
     [
         [/pixhost.to\/gallery\//],
@@ -1835,13 +1748,13 @@ const resolvers = [
             }
 
             if (settings.extensions.video.includes(`.${ext}`) && !h.contains('/v/', url)) {
-                url = url.replace(/(bunkrr?\.(ru|su|la|is))\//, 'bunkrr.su/v/');
+                url = url.replace(/(bunkrr?\.(ru|su|la|is))\//, 'bunkrr.ru/v/');
             }
 
             url = url.replace('stream.bunkr', 'bunkr').replace(/cdn(\d+)?\.bunkr/, 'bunkr');
 
             if (['zip', 'pdf'].includes(ext) && !h.contains('/d/', url)) {
-                url = url.replace(/(bunkrr?\.(ru|su|la|is))\//, 'bunkrr.su/d/');
+                url = url.replace(/(bunkrr?\.(ru|su|la|is))\//, 'bunkrr.ru/d/');
             }
 
             const { dom } = await http.get(url);
@@ -1872,7 +1785,7 @@ const resolvers = [
             const files = [...dom.querySelectorAll('.grid-images > div')].map(f => {
                 const a = f.querySelector('a');
                 const img = f.querySelector('a > img');
-                let url = `https://bunkrr.su${a.getAttribute('href')}`;
+                let url = `https://bunkrr.ru${a.getAttribute('href')}`;
                 if (url.includes('/d/')){
                     /* Insert zip, rar, pdf downloads here */
                 };
@@ -1905,9 +1818,6 @@ const resolvers = [
                 const fileCDN = file.cdn || '';
                 const cdn = fileCDN.includes('4') ? `i${fileCDN}` : fileCDN ;
                 let host = `https://${cdn}.bunkr.ru`;
-                if (h.contains('media-files12', host)) {
-                    host = host.replace('.bunkr.ru', '.bunkr.la');
-                }
                 return `${host}/${file.name}`;
             });
 
@@ -2946,7 +2856,7 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
                 h.ui.setElProps(statusLabel, { fontWeight: 'normal' });
                 var reflink = original;
                 if (url.includes('bunkr')){
-                    reflink = "https://bunkrr.su"
+                    reflink = "https://bunkrr.ru"
                 }
                 if (url.includes('pomf2')){
                     reflink = "https://pomf2.lain.la"
