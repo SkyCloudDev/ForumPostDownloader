@@ -6,7 +6,7 @@
 // @author x111000111
 // @author backwards
 // @description Downloads images and videos from posts
-// @version 2.8.2
+// @version 2.8.3
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.jpg.church/simpcityIcon192.png
@@ -27,6 +27,7 @@
 // @connect i-pizza.bunkr.ru
 // @connect bunkr.ru
 // @connect bunkr.su
+// @connect bunkr.sk
 // @connect bunkrr.ru
 // @connect bunkrr.su
 // @connect bunkr.la
@@ -1397,9 +1398,9 @@ const hosts = [
     ['saint.to:video', [/(saint.to\/embed\/|([~an@]+\.)?saint.to\/videos)/]],
     ['redgifs.com:video', [/!!redgifs.com(\/|\\\/)ifr.*?(?="|&quot;)/]],
     [
-        'bunkrr.ru:',
+        'bunkr.sk:',
         [
-            /!!(?<=href=")https:\/\/((stream|cdn(\d+)?)\.)?bunkrr?\.(ru|su|la|is).*?(?=")|(?<=(href=")|(src="))https:\/\/((i|cdn|i-pizza|big-taco-1img)(\d+)?\.)?bunkrr?\.(ru|su|la|is)\/(v\/)?.*?(?=")/,
+            /!!(?<=href=")https:\/\/((stream|cdn(\d+)?)\.)?bunkrr?\.(ru|su|la|is|sk).*?(?=")|(?<=(href=")|(src="))https:\/\/((i|cdn|i-pizza|big-taco-1img)(\d+)?\.)?bunkrr?\.(ru|su|la|is|sk)\/(v\/)?.*?(?=")/,
         ],
     ],
     ['give.xxx:Profiles', [/give.xxx\/[~an@_-]+/]],
@@ -1737,7 +1738,7 @@ const resolvers = [
         },
     ],
     [
-        [/((stream|cdn(\d+)?)\.)?bunkrr?\.(ru|su|la|is).*?\.|((i|cdn)(\d+)?\.)?bunkrr?\.(ru|su|la|is)\/(v\/)?/i, /:!bunkrr?\.(ru|su|la|is)\/a\//],
+        [/((stream|cdn(\d+)?)\.)?bunkrr?\.(ru|su|la|is|sk).*?\.|((i|cdn)(\d+)?\.)?bunkrr?\.(ru|su|la|is|sk)\/(v\/)?/i, /:!bunkrr?\.(ru|su|la|is|sk)\/a\//],
         async (url, http) => {
 
             const ext = h.ext(url).toLowerCase();
@@ -1748,13 +1749,13 @@ const resolvers = [
             }
 
             if (settings.extensions.video.includes(`.${ext}`) && !h.contains('/v/', url)) {
-                url = url.replace(/(bunkrr?\.(ru|su|la|is))\//, 'bunkrr.ru/v/');
+                url = url.replace(/(bunkrr?\.(ru|su|la|is|sk))\//, 'bunkrr.sk/v/');
             }
 
             url = url.replace('stream.bunkr', 'bunkr').replace(/cdn(\d+)?\.bunkr/, 'bunkr');
 
             if (['zip', 'pdf'].includes(ext) && !h.contains('/d/', url)) {
-                url = url.replace(/(bunkrr?\.(ru|su|la|is))\//, 'bunkrr.ru/d/');
+                url = url.replace(/(bunkrr?\.(ru|su|la|is|sk))\//, 'bunkr.sk/d/');
             }
 
             const { dom } = await http.get(url);
@@ -1778,21 +1779,21 @@ const resolvers = [
         },
     ],
     [
-        [/bunkrr?\.(ru|su|la)\/a\//],
+        [/bunkrr?\.(ru|su|la|sk)\/a\//],
         async (url, http) => {
             const { dom, source } = await http.get(url);
 
             const files = [...dom.querySelectorAll('.grid-images > div')].map(f => {
                 const a = f.querySelector('a');
                 const img = f.querySelector('a > img');
-                let url = `https://bunkrr.ru${a.getAttribute('href')}`;
+                let url = `https://bunkr.sk${a.getAttribute('href')}`;
                 if (url.includes('/d/')){
                     /* Insert zip, rar, pdf downloads here */
                 };
                 const extension = f.getElementsByTagName('p')[0].innerHTML.split('.').pop();
                 const filename = img?.getAttribute('src').split("/").pop().split('.').slice(0, -1).join(".");
 
-                url = "https://temp.bunkr.ru/"+filename+"."+extension;
+                url = "https://temp.bunk.sk/"+filename+"."+extension;
 
                 let name = h.basename(url).replaceAll(" ", "-");
 
@@ -2856,7 +2857,7 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
                 h.ui.setElProps(statusLabel, { fontWeight: 'normal' });
                 var reflink = original;
                 if (url.includes('bunkr')){
-                    reflink = "https://bunkrr.ru"
+                    reflink = "https://bunkr.sk"
                 }
                 if (url.includes('pomf2')){
                     reflink = "https://pomf2.lain.la"
