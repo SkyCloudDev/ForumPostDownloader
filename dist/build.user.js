@@ -6,7 +6,7 @@
 // @author x111000111
 // @author backwards
 // @description Downloads images and videos from posts
-// @version 2.8.3
+// @version 2.8.4
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.jpg.church/simpcityIcon192.png
@@ -26,11 +26,16 @@
 // @connect big-taco-1img.bunkr.ru
 // @connect i-pizza.bunkr.ru
 // @connect bunkr.ru
-// @connect bunkr.su
 // @connect bunkr.sk
 // @connect bunkrr.ru
 // @connect bunkrr.su
-// @connect bunkr.la
+// @connect bunkr.ac
+// @connect bunkr.ws
+// @connect bunkr.black
+// @connect bunkr.cat
+// @connect bunkr.media
+// @connect bunkr.red
+// @connect bunkr.site
 // @connect bunkr.is
 // @connect cyberdrop.me
 // @connect cyberdrop.cc
@@ -42,8 +47,6 @@
 // @connect cyberfile.me
 // @connect saint.to
 // @connect redd.it
-// @connect dailystar.co.uk
-// @connect pinuderest.com
 // @connect onlyfans.com
 // @connect i.ibb.co
 // @connect ibb.co
@@ -63,8 +66,6 @@
 // @connect pornhub.com
 // @connect postimg.cc
 // @connect imgvb.com
-// @connect instagram.com
-// @connect cdninstagram.com
 // @connect pixxxels.cc
 // @connect postimg.cc
 // @connect imagevenue.com
@@ -1370,11 +1371,10 @@ const hosts = [
     ['simpcity.su:Attachments', [/(\/attachments\/|\/data\/video\/)/]],
     ['coomer.party:Profiles', [/coomer.party\/[~an@._-]+\/user/]],
     ['coomer.party:image', [/(\w+\.)?coomer.party\/(data|thumbnail)/]],
-    ['jpg4.su:image', [/(simp\d+.)?jpe?g.?\.(church|fish|fishing|pet|su)\/(?!(images2\/0fya082315al2ed460420dbc052c2\.png|images2\/scc49c36a108cefc020\.png|images\/0fya082315al\.png|img\/|a\/|album\/))/, /jpe?g.?\.(church|fish|fishing|pet|su)(\/a\/|\/album\/)[~an@-_.]+<no_qs>/]],
+    ['jpg4.su:image', [/(simp\d+.)?jpe?g.?\.(church|fish|fishing|pet|su)\/(?!(images2\/0fya082315al2ed460420dbc052c2\.png|images2\/scc49c36a108cefc020\.png|images\/0fya082315al\.png|2024\/0fya082315al84db03fa9bf467e3\.png|img\/|a\/|album\/))/, /jpe?g.?\.(church|fish|fishing|pet|su)(\/a\/|\/album\/)[~an@-_.]+<no_qs>/]],
     ['kemono.party:direct link', [/.{2,6}\.kemono.party\/data\//]],
     ['postimg.cc:image', [/!!https?:\/\/(www.)?i\.?(postimg|pixxxels).cc\/(.{8})/]], //[/!!https?:\/\/(www.)?postimg.cc\/(.{8})/]],
-    [
-        'ibb.co:image',
+    ['ibb.co:image',
         [
             /!!(?<=href=")https?:\/\/(www.)?([a-z](\d+)?\.)?ibb\.co\/([a-zA-Z0-9_.-]){7}((?=")|\/)(([a-zA-Z0-9_.-])+(?="))?/,
             /ibb.co\/album\/[~an@_.-]+/,
@@ -1385,22 +1385,17 @@ const hosts = [
     ['imgvb:image', [/imgvb.com\/images\//, /imgvb.com\/album/]],
     ['imgbox.com:image', [/(thumbs|images)(\d+)?.imgbox.com\//, /imgbox.com\/g\//]],
     ['onlyfans.com:image', [/public.onlyfans.com\/files/]],
-    ['dailystar.co.uk:image', [/i(\d+)?-prod\.dailystar.co.uk\/.*?\.(jpg|jpeg|png)/]],
-    ['pinuderest.com:image', [/pinuderest.com\/wp-content\/.*?\.(jpg|jpeg|png)/]],
     ['reddit.com:image', [/(\w+)?.redd.it/]],
     ['pomf2.lain.la:File', [/pomf2.lain.la/]],
-    ['instagram.com:Media', [/!!https:(\/|\\\/){2}s9e.github.io(\/|\\\/)iframe(\/|\\\/)2(\/|\\\/)instagram.*?(?="|&quot;)/]],
-    ['instagram.com:Profile', [/!!instagram.com\/[~an@_.-]+|((instagram|insta):(\s+)?)@?[a-zA-Z0-9_.-]+/]],
     ['nitter:image', [/nitter\.(.{1,20})\/pic/]],
     ['twitter.com:image', [/([~an@.]+)?twimg.com\//]],
     ['pixhost.to:image', [/t(\d+)?\.pixhost.to\//, /pixhost.to\/gallery\//]],
     ['imagebam.com:image', [/imagebam.com\/(view|gallery)/]],
     ['saint.to:video', [/(saint.to\/embed\/|([~an@]+\.)?saint.to\/videos)/]],
     ['redgifs.com:video', [/!!redgifs.com(\/|\\\/)ifr.*?(?="|&quot;)/]],
-    [
-        'bunkr.sk:',
+    ['bunkr:',
         [
-            /!!(?<=href=")https:\/\/((stream|cdn(\d+)?)\.)?bunkrr?\.(ru|su|la|is|sk).*?(?=")|(?<=(href=")|(src="))https:\/\/((i|cdn|i-pizza|big-taco-1img)(\d+)?\.)?bunkrr?\.(ru|su|la|is|sk)\/(v\/)?.*?(?=")/,
+            /!!(?<=href=")https:\/\/((stream|cdn(\d+)?)\.)?bunkrr?\.(ru|su|sk|ac|ws|black|cat|media|red|site|is).*?(?=")|(?<=(href=")|(src="))https:\/\/((i|cdn|i-pizza|big-taco-1img)(\d+)?\.)?bunkrr?\.(ru|su|sk|ac|ws|black|cat|media|red|site|is)\/(v\/)?.*?(?=")/,
         ],
     ],
     ['give.xxx:Profiles', [/give.xxx\/[~an@_-]+/]],
@@ -1738,7 +1733,7 @@ const resolvers = [
         },
     ],
     [
-        [/((stream|cdn(\d+)?)\.)?bunkrr?\.(ru|su|la|is|sk).*?\.|((i|cdn)(\d+)?\.)?bunkrr?\.(ru|su|la|is|sk)\/(v\/)?/i, /:!bunkrr?\.(ru|su|la|is|sk)\/a\//],
+        [/((stream|cdn(\d+)?)\.)?bunkrr?\.(ru|su|sk|ac|ws|black|cat|media|red|site|is).*?\.|((i|cdn)(\d+)?\.)?bunkrr?\.(ru|su|sk|ac|ws|black|cat|media|red|site|is)\/(v\/)?/i, /:!bunkrr?\.(ru|su|sk|ac|ws|black|cat|media|red|site|is)\/a\//],
         async (url, http) => {
 
             const ext = h.ext(url).toLowerCase();
@@ -1749,13 +1744,13 @@ const resolvers = [
             }
 
             if (settings.extensions.video.includes(`.${ext}`) && !h.contains('/v/', url)) {
-                url = url.replace(/(bunkrr?\.(ru|su|la|is|sk))\//, 'bunkrr.sk/v/');
+                url = url.replace(/(bunkrr?\.(ru|su|sk|ac|ws|black|cat|media|red|site|is))\//, 'bunkr.sk/v/');
             }
 
             url = url.replace('stream.bunkr', 'bunkr').replace(/cdn(\d+)?\.bunkr/, 'bunkr');
 
             if (['zip', 'pdf'].includes(ext) && !h.contains('/d/', url)) {
-                url = url.replace(/(bunkrr?\.(ru|su|la|is|sk))\//, 'bunkr.sk/d/');
+                url = url.replace(/(bunkrr?\.(ru|su|sk|ac|ws|black|cat|media|red|site|is))\//, 'bunkr.sk/d/');
             }
 
             const { dom } = await http.get(url);
@@ -1775,11 +1770,12 @@ const resolvers = [
                 btnDownload = btnDownloadInit;
             }
 
+
             return !btnDownload ? null : btnDownload.getAttribute('href');
         },
     ],
     [
-        [/bunkrr?\.(ru|su|la|sk)\/a\//],
+        [/bunkrr?\.(ru|su|sk|ac|ws|black|cat|media|red|site|is)\/a\//],
         async (url, http) => {
             const { dom, source } = await http.get(url);
 
@@ -2234,8 +2230,6 @@ const resolvers = [
     ],
     [[/([~an@]+\.)?saint.to\/videos/], async url => url],
     [[/public.onlyfans.com\/files/], async url => url],
-    [[/dailystar.co.uk\//], async url => url],
-    [[/pinuderest.com\//], async url => url],
     [
         [/saint.to\/embed/],
         async (url, http) => {
@@ -2518,110 +2512,6 @@ const resolvers = [
             }
 
             return null;
-        },
-    ],
-    [
-        [/instagram\.min/],
-        async (url, http) => {
-            const id = url
-            .replace(/#theme.*/gis, '')
-            .split('#')
-            .reverse()[0];
-
-            const { source, dom } = await http.get(`https://www.instagram.com/p/${id}/embed`);
-            const script = [...dom.querySelectorAll('script')].map(s => s.innerText).filter(s => h.contains('shortcode_media', s))[0];
-
-            const resolved = [];
-
-            if (script) {
-                if (h.contains('"is_video":true', script)) {
-                    let videoUrls = h.re.matchAll(/(?<=video_url":").*?(?=")/gis, script);
-                    videoUrls.forEach(v => {
-                        resolved.push(v.replace(/\\u0026/g, '&'));
-                    });
-                }
-            }
-
-            if (!resolved.length) {
-                return null;
-            }
-
-            if (resolved.length > 1) {
-                return {
-                    dom,
-                    source,
-                    folderName: null,
-                    resolved,
-                };
-            }
-
-            return resolved[0];
-        },
-    ],
-    [
-        [/instagram.com\/[a-zA-Z0-9_.-]+|((instagram|insta):(\s+)?)@?[a-zA-Z0-9_.-]+/i],
-        async (url, http) => {
-            let id;
-
-            if (/(instagram|insta):/is.test(url)) {
-                id = h.re
-                    .matchAll(/@?.*/gis, url)[0]
-                    .replace('@', '')
-                    .replace(/(instagram:|insta:)/is, '')
-                    .trim();
-            } else {
-                id = url.split('/').reverse()[0];
-            }
-
-            const headers = { 'User-Agent': 'Instagram 219.0.0.12.117 Android' };
-
-            const { source, dom } = await http.get(`https://instagram.com/${id}`, {}, headers);
-
-            const profileId = h.re.matchAll(/(?<="profile_id":")\d+/gis, source)[0];
-
-            const apiBaseUrl = `https://www.instagram.com/api/v1/feed/user/`;
-
-            const { source: response } = await h.http.get(`${apiBaseUrl}${profileId}/?count=100`, {}, headers);
-
-            const collect = async response => {
-                const props = JSON.parse(response);
-                const resolved = [];
-                if (props && props.status === 'ok' && props.num_results > 0) {
-                    const items = Object.values(props.items);
-                    for (const item of items) {
-                        if (item.product_type === 'feed') {
-                            resolved.push(item.image_versions2.candidates[0].url);
-                        } else if (item.product_type === 'carousel_container') {
-                            resolved.push(...item.carousel_media.map(m => m.image_versions2.candidates[0].url));
-                        } else if (item.product_type === 'clips') {
-                            resolved.push(item.video_versions[0].url);
-                        }
-                    }
-
-                    if (props.more_available === true && props.next_max_id) {
-                        await h.delayedResolve(3000);
-                        const { source } = await h.http.get(`${apiBaseUrl}/${profileId}/?count=100&max_id=${props.next_max_id}`, {}, headers);
-                        resolved.push(...(await collect(source)));
-                    }
-                }
-
-                return resolved;
-            };
-
-            const resolved = await collect(response);
-
-            const props = JSON.parse(response);
-
-            const folderName = props && props.user ? props.user.full_name : id;
-
-            if (resolved.length > 1) {
-                return {
-                    dom,
-                    source,
-                    folderName,
-                    resolved: resolved.map(url => url.replace(/\\u0026/g, '&')),
-                };
-            }
         },
     ],
     [[/(\w+)?.redd.it/], url => url.replace(/&amp;/g, '&')],
@@ -3221,8 +3111,7 @@ const addDownloadPageButton = () => {
 
 /**
  * @param postFooter
- */
-const registerPostReaction = postFooter => {
+ */const registerPostReaction = postFooter => {
   const hasReaction = postFooter.querySelector('.has-reaction');
   if (!hasReaction) {
     const reactionAnchor = postFooter.querySelector('.reaction--imageHidden');
