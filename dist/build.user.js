@@ -6,10 +6,10 @@
 // @author x111000111
 // @author backwards
 // @description Downloads images and videos from posts
-// @version 2.8.4
+// @version 2.8.5
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
-// @icon https://simp4.jpg.church/simpcityIcon192.png
+// @icon https://simp4.host.church/simpcityIcon192.png
 // @license WTFPL; http://www.wtfpl.net/txt/copying/
 // @match https://simpcity.su/threads/*
 // @require https://unpkg.com/@popperjs/core@2
@@ -45,13 +45,13 @@
 // @connect cyberdrop.to
 // @connect cyberfile.su
 // @connect cyberfile.me
-// @connect saint.to
+// @connect saint2.su
 // @connect redd.it
 // @connect onlyfans.com
 // @connect i.ibb.co
 // @connect ibb.co
 // @connect imagebam.com
-// @connect jpg.church
+// @connect host.church
 // @connect jpg.fish
 // @connect jpg.fishing
 // @connect jpg.pet
@@ -1371,7 +1371,7 @@ const hosts = [
     ['simpcity.su:Attachments', [/(\/attachments\/|\/data\/video\/)/]],
     ['coomer.party:Profiles', [/coomer.party\/[~an@._-]+\/user/]],
     ['coomer.party:image', [/(\w+\.)?coomer.party\/(data|thumbnail)/]],
-    ['jpg4.su:image', [/(simp\d+.)?jpe?g.?\.(church|fish|fishing|pet|su)\/(?!(images2\/0fya082315al2ed460420dbc052c2\.png|images2\/scc49c36a108cefc020\.png|images\/0fya082315al\.png|2024\/0fya082315al84db03fa9bf467e3\.png|img\/|a\/|album\/))/, /jpe?g.?\.(church|fish|fishing|pet|su)(\/a\/|\/album\/)[~an@-_.]+<no_qs>/]],
+    ['jpg4.su:image', [/(simp\d+.)?host\.(church|fish|fishing|pet|su)\/(?!(images2\/0fya082315al2ed460420dbc052c2\.png|images2\/scc49c36a108cefc020\.png|images\/0fya082315al\.png|2024\/0fya082315al84db03fa9bf467e3\.png|img\/|a\/|album\/))/, /jpe?g.?\.(church|fish|fishing|pet|su)(\/a\/|\/album\/)[~an@-_.]+<no_qs>/]],
     ['kemono.party:direct link', [/.{2,6}\.kemono.party\/data\//]],
     ['postimg.cc:image', [/!!https?:\/\/(www.)?i\.?(postimg|pixxxels).cc\/(.{8})/]], //[/!!https?:\/\/(www.)?postimg.cc\/(.{8})/]],
     ['ibb.co:image',
@@ -1391,7 +1391,7 @@ const hosts = [
     ['twitter.com:image', [/([~an@.]+)?twimg.com\//]],
     ['pixhost.to:image', [/t(\d+)?\.pixhost.to\//, /pixhost.to\/gallery\//]],
     ['imagebam.com:image', [/imagebam.com\/(view|gallery)/]],
-    ['saint.to:video', [/(saint.to\/embed\/|([~an@]+\.)?saint.to\/videos)/]],
+    ['saint2.su:video', [/(saint2.su\/embed\/|([~an@]+\.)?saint2.su\/videos)/]],
     ['redgifs.com:video', [/!!redgifs.com(\/|\\\/)ifr.*?(?="|&quot;)/]],
     ['bunkr:',
         [
@@ -1539,7 +1539,7 @@ const resolvers = [
     ],
     [[/kemono.party\/data/], url => url],
     [
-        [/jpe?g.?\.(church|fish|fishing|pet|su)\//i, /:!jpe?.1\.(church|fish|fishing|pet|su)(\/a\/|\/album\/)/i],
+        [/host\.(church|fish|fishing|pet|su)\//i, /:!jpe?.1\.(church|fish|fishing|pet|su)(\/a\/|\/album\/)/i],
         url =>
         url
         .replace('.th.', '.')
@@ -1988,7 +1988,7 @@ const resolvers = [
             const resolveAlbum = async (url, spoilers) => {
                 const contentId = url.split('/').reverse()[0];
 
-                const apiUrl = `https://api.gofile.io/getContent?contentId=${contentId}&token=${settings.hosts.goFile.token}&websiteToken=7fd94ds12fds4&cache=true`;
+                const apiUrl = `https://api.gofile.io/getContent?contentId=${contentId}&token=${settings.hosts.goFile.token}&wt=4fd6sg89d7s6&cache=true`;
 
                 let { source } = await http.get(apiUrl);
 
@@ -2228,10 +2228,10 @@ const resolvers = [
             };
         },
     ],
-    [[/([~an@]+\.)?saint.to\/videos/], async url => url],
+    [[/([~an@]+\.)?saint2.su\/videos/], async url => url],
     [[/public.onlyfans.com\/files/], async url => url],
     [
-        [/saint.to\/embed/],
+        [/saint2.su\/embed/],
         async (url, http) => {
             const { dom } = await http.get(url);
             return dom.querySelector('source')?.getAttribute('src');
