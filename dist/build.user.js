@@ -1987,9 +1987,9 @@ const resolvers = [
             const resolveAlbum = async (url, spoilers) => {
                 const contentId = url.split('/').reverse()[0];
 
-                const apiUrl = `https://api.gofile.io/getContent?contentId=${contentId}&token=${settings.hosts.goFile.token}&wt=4fd6sg89d7s6&cache=true`;
+                const apiUrl = `https://api.gofile.io/contents/${contentId}?wt=4fd6sg89d7s6`;
 
-                let { source } = await http.get(apiUrl);
+                let { source } = await http.get(apiUrl, {}, { 'Authorization': `Bearer ${settings.hosts.goFile.token}` });
 
                 if (h.contains('error-notFound', source)) {
                     log.host.error(postId, `::Album not found::: ${url}`, 'gofile.io');
@@ -2044,7 +2044,7 @@ const resolvers = [
             const resolved = [];
 
             const getChildAlbums = async (props, spoilers) => {
-                if (!props || props.status !== 'ok' || !props.data || !props.data.childs || !props.data.childs.length) {
+                if (!props || props.status !== 'ok' || !props.data || !props.data.children) {
                     return [];
                 }
 
@@ -2052,7 +2052,7 @@ const resolvers = [
 
                 folderName = props.data.name;
 
-                const files = props.data.contents;
+                const files = props.data.children;
 
                 for (const file in files) {
                     const obj = files[file];
