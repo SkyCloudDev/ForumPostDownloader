@@ -5,7 +5,7 @@
 // @author SkyCloudDev
 // @author namechangeidiot
 // @description Downloads images and videos from posts
-// @version 2.8.5
+// @version 2.8.7
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.host.church/simpcityIcon192.png
@@ -29,6 +29,7 @@
 // @connect bunkrr.ru
 // @connect bunkrr.su
 // @connect bunkr.ac
+// @connect bunkr.si
 // @connect bunkr.ws
 // @connect bunkr.black
 // @connect bunkr.cat
@@ -36,6 +37,7 @@
 // @connect bunkr.red
 // @connect bunkr.site
 // @connect bunkr.is
+// @connect bunkr-cache.se
 // @connect cyberdrop.me
 // @connect cyberdrop.cc
 // @connect cyberdrop.ch
@@ -446,7 +448,8 @@ const h = {
         base: (method, url, callbacks = {}, headers = {}, data = {}, responseType = 'document') => {
             return h.promise((resolve, reject) => {
                 let responseHeaders = null;
-                http({
+                let request = null;
+                request = http({
                     url,
                     method,
                     responseType,
@@ -458,17 +461,27 @@ const h = {
                     onreadystatechange: response => {
                         if (response.readyState === 2) {
                             responseHeaders = response.responseHeaders;
+
+                            if (callbacks && callbacks.onResponseHeadersReceieved) {
+                                callbacks.onResponseHeadersReceieved({ request, response, status: response.status, responseHeaders });
+
+                                if (request) {
+                                    request.abort();
+                                    resolve({ request, response, status: response.status, responseHeaders });
+                                }
+                            }
                         }
-                        callbacks && callbacks.onStateChange && callbacks.onStateChange(response);
+
+                        callbacks && callbacks.onStateChange && callbacks.onStateChange({ request, response });
                     },
                     onprogress: response => {
-                        callbacks && callbacks.onProgress && callbacks.onProgress(response);
+                        callbacks && callbacks.onProgress && callbacks.onProgress({ request, response });
                     },
                     onload: response => {
-                        const { responseText } = response;
+                        const { responseText, status } = response;
                         const dom = response?.response;
                         callbacks && callbacks.onLoad && callbacks.onLoad(response);
-                        resolve({ source: responseText, dom, responseHeaders });
+                        resolve({ source: responseText, request, status, dom, responseHeaders });
                     },
                     onerror: error => {
                         callbacks && callbacks.onError && callbacks.onError(error);
@@ -1024,25 +1037,31 @@ const ui = {
                 createZippedCheckbox: (postId, checked) => {
                     return ui.forms.createCheckbox(`settings-${postId}-zipped`, 'Zipped', checked);
                 },
-                /**
+        /**
          * @returns {string}
          */
                 createFlattenCheckbox: (postId, checked) => {
                     return ui.forms.createCheckbox(`settings-${postId}-flatten`, 'Flatten', checked);
                 },
-                /**
+        /**
          * @returns {string}
          */
                 createSkipDownloadCheckbox: (postId, checked) => {
                     return ui.forms.createCheckbox(`settings-${postId}-skip-download`, 'Skip Download', checked);
                 },
-                /**
+        /**
+         * @returns {string}
+         */
+                createVerifyBunkrLinksCheckbox: (postId, checked) => {
+                    return ui.forms.createCheckbox(`settings-${postId}-verify-bunkr-links`, 'Verify Bunkr Links', checked);
+                },
+        /**
          * @returns {string}
          */
                 createGenerateLinksCheckbox: (postId, checked) => {
                     return ui.forms.createCheckbox(`settings-${postId}-generate-links`, 'Generate Links', checked);
                 },
-                /**
+        /**
          * @returns {string}
          */
                 createGenerateLogCheckbox: (postId, checked) => {
@@ -1054,7 +1073,7 @@ const ui = {
                 createSkipDuplicatesCheckbox: (postId, checked) => {
                     return ui.forms.createCheckbox(`settings-${postId}-skip-duplicates`, 'Skip Duplicates', checked);
                 },
-                /**
+        /**
          * @param hosts
          * @param getTotalDownloadableResourcesCB
          * @returns {string}
@@ -1144,6 +1163,7 @@ const ui = {
                         ui.forms.config.post.createGenerateLinksCheckbox(postId, settings.generateLinks),
                         ui.forms.config.post.createGenerateLogCheckbox(postId, settings.generateLog),
                         ui.forms.config.post.createSkipDownloadCheckbox(postId, settings.skipDownload),
+                        ui.forms.config.post.createVerifyBunkrLinksCheckbox(postId, settings.verifyBunkrLinks),
                         ui.forms.config.post.createHostCheckboxes(postId, filterLabel, hostsHtml, parsedHosts.length > 1),
                         ui.forms.createRow(
                             '<a href="#download-page" style="color: dodgerblue; font-weight: bold"><i class="fa fa-arrow-up"></i> Show Download Page Button</a>',
@@ -1199,6 +1219,10 @@ const ui = {
                                 h.element(`#settings-${postId}-generate-links`).disabled = checked;
 
                                 setTimeout(() => (updateSettings = true), 100);
+                            });
+
+                            h.element(`#settings-${postId}-verify-bunkr-links`).addEventListener('change', e => {
+                                settings.verifyBunkrLinks = e.target.checked;
                             });
 
                             if (!window.isFF) {
@@ -1732,90 +1756,94 @@ const resolvers = [
         },
     ],
     [
-        [/((stream|cdn(\d+)?)\.)?bunkrr?\.(ru|su|sk|ac|ws|black|cat|media|red|site|is).*?\.|((i|cdn)(\d+)?\.)?bunkrr?\.(ru|su|sk|ac|ws|black|cat|media|red|site|is)\/(v\/)?/i, /:!bunkrr?\.(ru|su|sk|ac|ws|black|cat|media|red|site|is)\/a\//],
+        [/((stream|cdn(\d+)?)\.)?bunkrr?\.(ru|su|sk|ac|ws|black|cat|media|red|si|site|is).*?\.|((i|cdn)(\d+)?\.)?bunkrr?\.(ru|su|sk|ac|ws|black|cat|media|red|si|site|is)\/(v\/)?/i, /:!bunkrr?\.(ru|su|sk|ac|ws|black|cat|media|red|si|site|is)\/a\//],
         async (url, http) => {
-
-            const ext = h.ext(url).toLowerCase();
-
-            if (settings.extensions.image.includes(`.${ext}`)) {
-                url = url.replace(/cdn(\d+)?/, 'i$1');
-                return url;
-            }
-
-            if (settings.extensions.video.includes(`.${ext}`) && !h.contains('/v/', url)) {
-                url = url.replace(/(bunkrr?\.(ru|su|sk|ac|ws|black|cat|media|red|site|is))\//, 'bunkr.sk/v/');
-            }
-
-            url = url.replace('stream.bunkr', 'bunkr').replace(/cdn(\d+)?\.bunkr/, 'bunkr');
-
-            if (['zip', 'pdf'].includes(ext) && !h.contains('/d/', url)) {
-                url = url.replace(/(bunkrr?\.(ru|su|sk|ac|ws|black|cat|media|red|site|is))\//, 'bunkr.sk/d/');
-            }
-
             const { dom } = await http.get(url);
 
-            let btnDownloadInit = null;
-
-            /* This gets a vid */
-            btnDownloadInit = dom.querySelector('body > main > section > div > div > div > div:nth-child(2) > div > a',);
-
-
-            if (btnDownloadInit.getAttribute('href').includes('report')){
-                const { dom } = await http.get(url);
-                /* This gets a zip, rar or pdf */
-                const btnDownload2 = dom.querySelector('body > main > section.py-8-xyz > div > div > div > div > div:nth-child(2) > a',);
-                var btnDownload = btnDownload2;
-            } else{
-                btnDownload = btnDownloadInit;
-            }
-
-
-            return !btnDownload ? null : btnDownload.getAttribute('href');
+            return dom?.querySelector('source')?.getAttribute('src');
         },
     ],
     [
-        [/bunkrr?\.(ru|su|sk|ac|ws|black|cat|media|red|site|is)\/a\//],
-        async (url, http) => {
+        [/bunkrr?\.(ru|su|sk|ac|ws|black|cat|media|red|si|site|is)\/a\//],
+        async (url, http, _, __, postSettings) => {
             const { dom, source } = await http.get(url);
 
-            const files = [...dom.querySelectorAll('.grid-images > div')].map(f => {
+            const containers = dom.querySelectorAll('.grid-images > div');
+
+            const files = [];
+
+            for (const f of containers) {
                 const a = f.querySelector('a');
                 const img = f.querySelector('a > img');
-                let url = `https://bunkr.sk${a.getAttribute('href')}`;
-                if (url.includes('/d/')){
-                    /* Insert zip, rar, pdf downloads here */
-                };
+
                 const extension = f.getElementsByTagName('p')[0].innerHTML.split('.').pop();
                 const filename = img?.getAttribute('src').split("/").pop().split('.').slice(0, -1).join(".");
+                const matches = /(?<=\/i-)\w+/.exec(img?.getAttribute('src'));
 
-                url = "https://temp.bunk.sk/"+filename+"."+extension;
+                let domain = null;
 
-                let name = h.basename(url).replaceAll(" ", "-");
+                if (matches && matches.length) {
+                    domain = matches[0];
+                }
 
-                let cdn = null;
+                if (!domain) {
+                    continue;
+                }
 
-                const src = img?.getAttribute('src');
-                if (src) {
-                    const matches = /((-)?([a-zA-Z0-9-]+))?\.bunkr/i.exec(src);
-                    if (matches && matches.length) {
-                        cdn = matches[3];
+                // The file is an image.
+                if (settings.extensions.image.some(e => e.substring(1).toLowerCase() === extension.toLowerCase())) {
+                    files.push(`https://i-${domain}.bunkr.ru/${filename}.${extension}`);
+                    continue;
+                }
+
+                // Start off without the cached url (bunkr-cache.se).
+                let resolvedURL = `https://${domain}.bunkr.ru/${filename}.${extension}`;
+
+                if (postSettings.verifyBunkrLinks) {
+                    let status = null;
+
+                    try {
+                        console.log(`Verifying: ${resolvedURL}`);
+                        
+                        await http.get(resolvedURL, {
+                            onResponseHeadersReceieved: ({ status: s, request }) => {
+                                status = s;
+                                if (request) {
+                                    request.abort();
+                                }
+                            }
+                        });
+
+                        console.log(status === 429 || status === 200 ? `File Exists: ${resolvedURL}` : `Verification Failed. Ignoring ${resolvedURL}`);
+                    } catch (e) {
+                        continue;
+                    }
+
+                    // The file was found. We'll ignore the error as the
+                    // concurrent downloads for Bunkr are fixed to a single download.
+                    if (status === 429) {
+                        files.push(resolvedURL);
+                        continue;
+                    }
+
+                    // Bail if the file's not found or there's a server error.
+                    if (status === 404 || status.toString().substring(0, 1) === '5') {
+                        continue;
+                    }
+
+                    // Try and pull the link from the video's source tag.
+                    if (status !== 200) {
+                        const { status, dom } = await http.get(a.href);
+                        resolvedURL = dom?.querySelector('source')?.getAttribute('src');
+                    }
+
+                    if (!resolvedURL) {
+                        continue;
                     }
                 }
 
-                return {
-                    name,
-                    url,
-                    cdn,
-                    img: src,
-                };
-            });
-
-            const resolved = files.map(file => {
-                const fileCDN = file.cdn || '';
-                const cdn = fileCDN.includes('4') ? `i${fileCDN}` : fileCDN ;
-                let host = `https://${cdn}.bunkr.ru`;
-                return `${host}/${file.name}`;
-            });
+                files.push(resolvedURL);
+            }
 
             const infoContainer = dom.querySelector('h1.text-\\[24px\\]');
             const parts = infoContainer?.outerText
@@ -1823,13 +1851,13 @@ const resolvers = [
             .map(t => t.trim())
             .filter(t => t !== '');
             const OrigAlbumName = parts.length ? parts[0].trim() : url.split('/').reverse()[0];
-            const albumName = OrigAlbumName.replaceAll('/', '-');
+            const albumName = OrigAlbumName.replaceAll('/', '-').replace('&amp;', '');
 
             return {
                 dom,
                 source,
                 folderName: albumName,
-                resolved,
+                resolved: files.filter(file => file),
             };
         },
     ],
@@ -2613,7 +2641,7 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
                 let r = null;
 
                 try {
-                    r = await h.promise(resolve => resolve(resolverCB(resource, h.http, passwords, postId)));
+                    r = await h.promise(resolve => resolve(resolverCB(resource, h.http, passwords, postId, postSettings)));
                 } catch (e) {
                     log.post.error(postId, `::Error resolving::: ${resource}`, postNumber);
                     continue;
@@ -2717,7 +2745,8 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
         const resources = resolved.filter(r => r.url);
         totalDownloadable = resources.length;
 
-        const batchLength = 2;
+        // Limit bunkr links to a single concurrent download.
+        let batchLength = resolved.some(file => /(bunkrr?\.\w+)|(bunkr-cache)/.test(file.url)) ? 1 : 2;
 
         let currentBatch = 0;
 
@@ -3206,6 +3235,7 @@ const selectedPosts = [];
                 generateLog: false,
                 skipDuplicates: false,
                 skipDownload: false,
+                verifyBunkrLinks: false,
                 output: [],
             };
 
