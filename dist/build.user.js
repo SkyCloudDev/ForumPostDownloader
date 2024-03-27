@@ -5,7 +5,7 @@
 // @author SkyCloudDev
 // @author namechangeidiot
 // @description Downloads images and videos from posts
-// @version 2.8.7
+// @version 2.8.8
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.host.church/simpcityIcon192.png
@@ -195,6 +195,8 @@ const settings = {
         },
     },
     extensions: {
+        documents: ['.txt', '.doc', '.docx', '.pdf'],
+        compressed: ['.zip', '.rar', '.7z', '.tar', '.bz2', '.gzip'],
         image: ['.jpg', '.jpeg', '.png', '.gif', '.gif', '.webp', '.jpe', '.svg', '.tif', '.tiff', '.jif'],
         video: [
             '.mpeg',
@@ -1758,6 +1760,53 @@ const resolvers = [
     [
         [/((stream|cdn(\d+)?)\.)?bunkrr?\.(ru|su|sk|ac|ws|black|cat|media|red|si|site|is).*?\.|((i|cdn)(\d+)?\.)?bunkrr?\.(ru|su|sk|ac|ws|black|cat|media|red|si|site|is)\/(v\/)?/i, /:!bunkrr?\.(ru|su|sk|ac|ws|black|cat|media|red|si|site|is)\/a\//],
         async (url, http) => {
+            const extension = h.ext(url);
+            const filename = h.basename(url);
+            let matches = /bunkr\.\w+\/i/i.exec(url);
+
+            const isImage = matches && matches.length;
+            const retrieveImageFromURL = matches && matches.length;
+
+            let domain = null;
+
+            if (!matches || !matches.length) {
+                matches = /(?<=\/i-)\w+/.exec(url);
+
+                if (matches && matches.length) {
+                    domain = matches[0];
+                }
+            }
+
+            const isImagExtension = settings.extensions.image.some(e => e.substring(1).toLowerCase() === extension.toLowerCase());
+
+            // The file is an image.
+            if (isImage || isImagExtension) {
+                if (isImagExtension) {
+                    return `https://i-${domain}.bunkr.ru/${filename}.${extension}`;
+                }
+
+                if (retrieveImageFromURL) {
+                    const { dom } = await http.get(url);
+
+                    return dom?.querySelector('.lightgallery > img')?.getAttribute('src');
+                }
+            }
+
+            // The file is a document or an archive.
+            if (/\w+\/d\//.test(url)) {
+                console.log('Doc');
+                const { dom } = await http.get(url);
+                const downloadPageURL = dom?.querySelector(`a[href^="https://get.bunkr"]`)?.href;
+
+                if (!downloadPageURL) {
+                    return null;
+                }
+
+                const { dom: downloadPageDOM } = await http.get(downloadPageURL);
+
+                return downloadPageDOM?.querySelector('a')?.href;
+            }
+
             const { dom } = await http.get(url);
 
             return dom?.querySelector('source')?.getAttribute('src');
@@ -1776,6 +1825,8 @@ const resolvers = [
                 const a = f.querySelector('a');
                 const img = f.querySelector('a > img');
 
+                const href = a?.href;
+
                 const extension = f.getElementsByTagName('p')[0].innerHTML.split('.').pop();
                 const filename = img?.getAttribute('src').split("/").pop().split('.').slice(0, -1).join(".");
                 const matches = /(?<=\/i-)\w+/.exec(img?.getAttribute('src'));
@@ -1786,13 +1837,38 @@ const resolvers = [
                     domain = matches[0];
                 }
 
-                if (!domain) {
+                // The file is an image.
+                if (domain && settings.extensions.image.some(e => e.substring(1).toLowerCase() === extension.toLowerCase())) {
+                    files.push(`https://i-${domain}.bunkr.ru/${filename}.${extension}`);
+
                     continue;
                 }
 
-                // The file is an image.
-                if (settings.extensions.image.some(e => e.substring(1).toLowerCase() === extension.toLowerCase())) {
-                    files.push(`https://i-${domain}.bunkr.ru/${filename}.${extension}`);
+                // The file is a document or an archive.
+                if (
+                    href &&
+                    (
+                        settings.extensions.documents.some(e => e.substring(1).toLowerCase() === extension.toLowerCase()) ||
+                        settings.extensions.compressed.some(e => e.substring(1).toLowerCase() === extension.toLowerCase())
+                    )
+                ) {
+                    const { dom } = await http.get(href);
+                    const downloadPageURL = dom?.querySelector(`a[href^="https://get.bunkr"]`)?.href;
+
+                    if (!downloadPageURL) {
+                        continue;
+                    }
+
+                    const { dom: downloadPageDOM } = await http.get(downloadPageURL);
+
+                    files.push(downloadPageDOM?.querySelector('a')?.href);
+
+                    continue;
+                }
+
+                // From this point on, we assume that the file is a video.
+                // Since it's a video, the domain regex on the image url has to be passed.
+                if (!domain) {
                     continue;
                 }
 
