@@ -5,7 +5,7 @@
 // @author SkyCloudDev
 // @author namechangeidiot
 // @description Downloads images and videos from posts
-// @version 2.8.8
+// @version 2.8.9
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.host.church/simpcityIcon192.png
@@ -69,6 +69,7 @@
 // @connect imgvb.com
 // @connect pixxxels.cc
 // @connect postimg.cc
+// @connect pmvhaven.com
 // @connect imagevenue.com
 // @connect nhentai-proxy.herokuapp.com
 // @connect pbs.twimg.com
@@ -1433,6 +1434,7 @@ const hosts = [
     ['pornhub.com:video', [/([~an@]+\.)?pornhub.com\/view_video/]],
     ['noodlemagazine.com:video', [/(adult.)?noodlemagazine.com\/watch\//]],
     ['spankbang.com:video', [/spankbang.com\/.*?\/video/]],
+    ['PMVHaven:video', [/pmvhaven.com\/video/]],
 ];
 
 /**
@@ -2465,6 +2467,14 @@ const resolvers = [
             }
 
             return null;
+        },
+    ],
+    [
+        [/pmvhaven.com\/video/],
+        async (url, http) => {
+            const { dom } = await http.get(url);
+
+            return dom?.querySelector('meta[property="og:video:secure_url"]')?.getAttribute('content');
         },
     ],
     [
