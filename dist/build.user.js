@@ -5,7 +5,7 @@
 // @author SkyCloudDev
 // @author namechangeidiot
 // @description Downloads images and videos from posts
-// @version 2.8.8
+// @version 2.8.9
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.host.church/simpcityIcon192.png
@@ -30,6 +30,7 @@
 // @connect bunkrr.su
 // @connect bunkr.ac
 // @connect bunkr.si
+// @connect bunkrrr.org
 // @connect bunkr.ws
 // @connect bunkr.black
 // @connect bunkr.cat
@@ -1420,7 +1421,7 @@ const hosts = [
     ['redgifs.com:video', [/!!redgifs.com(\/|\\\/)ifr.*?(?="|&quot;)/]],
     ['bunkr:',
         [
-            /!!(?<=href=")https:\/\/((stream|cdn(\d+)?)\.)?bunkrr?\.(ru|su|sk|ac|ws|black|cat|media|red|site|is).*?(?=")|(?<=(href=")|(src="))https:\/\/((i|cdn|i-pizza|big-taco-1img)(\d+)?\.)?bunkrr?\.(ru|su|sk|ac|ws|black|cat|media|red|site|is)\/(v\/)?.*?(?=")/,
+            /!!(?<=href=")https:\/\/((stream|cdn(\d+)?)\.)?bunkrr?r?\.(org|si|ru|su|sk|ac|ws|black|cat|media|red|site|is).*?(?=")|(?<=(href=")|(src="))https:\/\/((i|cdn|i-pizza|big-taco-1img)(\d+)?\.)?bunkrr?r?\.(org|si|ru|su|sk|ac|ws|black|cat|media|red|site|is)\/(v\/)?.*?(?=")/,
         ],
     ],
     ['give.xxx:Profiles', [/give.xxx\/[~an@_-]+/]],
@@ -1758,7 +1759,7 @@ const resolvers = [
         },
     ],
     [
-        [/((stream|cdn(\d+)?)\.)?bunkrr?\.(ru|su|sk|ac|ws|black|cat|media|red|si|site|is).*?\.|((i|cdn)(\d+)?\.)?bunkrr?\.(ru|su|sk|ac|ws|black|cat|media|red|si|site|is)\/(v\/)?/i, /:!bunkrr?\.(ru|su|sk|ac|ws|black|cat|media|red|si|site|is)\/a\//],
+        [/((stream|cdn(\d+)?)\.)?bunkrr?r?\.(org|si|ru|su|sk|ac|ws|black|cat|media|red|si|site|is).*?\.|((i|cdn)(\d+)?\.)?bunkrr?r?\.(org|si|ru|su|sk|ac|ws|black|cat|media|red|si|site|is)\/(v\/)?/i, /:!bunkrr?r?\.(org|si|ru|su|sk|ac|ws|black|cat|media|red|si|site|is)\/a\//],
         async (url, http) => {
             const extension = h.ext(url);
             const filename = h.basename(url);
@@ -1813,7 +1814,7 @@ const resolvers = [
         },
     ],
     [
-        [/bunkrr?\.(ru|su|sk|ac|ws|black|cat|media|red|si|site|is)\/a\//],
+        [/bunkrr?r?\.(org|si|ru|su|sk|ac|ws|black|cat|media|red|si|site|is)\/a\//],
         async (url, http, _, __, postSettings) => {
             const { dom, source } = await http.get(url);
 
@@ -2851,7 +2852,7 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
                 h.ui.setElProps(statusLabel, { fontWeight: 'normal' });
                 var reflink = original;
                 if (url.includes('bunkr')){
-                    reflink = "https://bunkr.sk"
+                    reflink = "https://bunkr.si"
                 }
                 if (url.includes('pomf2')){
                     reflink = "https://pomf2.lain.la"
