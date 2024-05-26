@@ -5,7 +5,7 @@
 // @author SkyCloudDev
 // @author namechangeidiot
 // @description Downloads images and videos from posts
-// @version 2.8.9
+// @version 2.9.0
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.host.church/simpcityIcon192.png
@@ -24,20 +24,25 @@
 // @connect github.com
 // @connect big-taco-1img.bunkr.ru
 // @connect i-pizza.bunkr.ru
-// @connect bunkr.ru
-// @connect bunkr.sk
-// @connect bunkrr.ru
-// @connect bunkrr.su
 // @connect bunkr.ac
-// @connect bunkr.si
-// @connect bunkrrr.org
-// @connect bunkr.ws
+// @connect bunkr.ax
 // @connect bunkr.black
 // @connect bunkr.cat
-// @connect bunkr.media
-// @connect bunkr.red
-// @connect bunkr.site
+// @connect bunkr.ci
+// @connect bunkr.fi
 // @connect bunkr.is
+// @connect bunkr.media
+// @connect bunkr.nu
+// @connect bunkr.red
+// @connect bunkr.ru
+// @connect bunkr.se
+// @connect bunkr.si
+// @connect bunkr.site
+// @connect bunkr.sk
+// @connect bunkr.ws
+// @connect bunkrr.ru
+// @connect bunkrr.su
+// @connect bunkrrr.org
 // @connect bunkr-cache.se
 // @connect cyberdrop.me
 // @connect cyberdrop.cc
@@ -1421,7 +1426,7 @@ const hosts = [
     ['redgifs.com:video', [/!!redgifs.com(\/|\\\/)ifr.*?(?="|&quot;)/]],
     ['bunkr:',
         [
-            /!!(?<=href=")https:\/\/((stream|cdn(\d+)?)\.)?bunkrr?r?\.(org|si|ru|su|sk|ac|ws|black|cat|media|red|site|is).*?(?=")|(?<=(href=")|(src="))https:\/\/((i|cdn|i-pizza|big-taco-1img)(\d+)?\.)?bunkrr?r?\.(org|si|ru|su|sk|ac|ws|black|cat|media|red|site|is)\/(v\/)?.*?(?=")/,
+            /!!(?<=href=")https:\/\/((stream|cdn(\d+)?)\.)?bunkrr?r?\.(ac|ax|black|cat|ci|fi|is|media|nu|red|ru|se|si|site|sk|ws|ru|su|org).*?(?=")|(?<=(href=")|(src="))https:\/\/((i|cdn|i-pizza|big-taco-1img)(\d+)?\.)?bunkrr?r?\.(ac|ax|black|cat|ci|fi|is|media|nu|red|ru|se|si|site|sk|ws|ru|su|org)\/(v\/)?.*?(?=")/,
         ],
     ],
     ['give.xxx:Profiles', [/give.xxx\/[~an@_-]+/]],
@@ -1759,7 +1764,7 @@ const resolvers = [
         },
     ],
     [
-        [/((stream|cdn(\d+)?)\.)?bunkrr?r?\.(org|si|ru|su|sk|ac|ws|black|cat|media|red|si|site|is).*?\.|((i|cdn)(\d+)?\.)?bunkrr?r?\.(org|si|ru|su|sk|ac|ws|black|cat|media|red|si|site|is)\/(v\/)?/i, /:!bunkrr?r?\.(org|si|ru|su|sk|ac|ws|black|cat|media|red|si|site|is)\/a\//],
+        [/((stream|cdn(\d+)?)\.)?bunkrr?r?\.(ac|ax|black|cat|ci|fi|is|media|nu|red|ru|se|si|site|sk|ws|ru|su|org).*?\.|((i|cdn)(\d+)?\.)?bunkrr?r?\.(ac|ax|black|cat|ci|fi|is|media|nu|red|ru|se|si|site|sk|ws|ru|su|org)\/(v\/)?/i, /:!bunkrr?r?\.(ac|ax|black|cat|ci|fi|is|media|nu|red|ru|se|si|site|sk|ws|ru|su|org)\/a\//],
         async (url, http) => {
             const extension = h.ext(url);
             const filename = h.basename(url);
@@ -1814,7 +1819,7 @@ const resolvers = [
         },
     ],
     [
-        [/bunkrr?r?\.(org|si|ru|su|sk|ac|ws|black|cat|media|red|si|site|is)\/a\//],
+        [/bunkrr?r?\.(ac|ax|black|cat|ci|fi|is|media|nu|red|ru|se|si|site|sk|ws|ru|su|org)\/a\//],
         async (url, http, _, __, postSettings) => {
             const { dom, source } = await http.get(url);
 
@@ -3216,15 +3221,16 @@ const addDownloadPageButton = () => {
 
 /**
  * @param postFooter
- */const registerPostReaction = postFooter => {
-  const hasReaction = postFooter.querySelector('.has-reaction');
-  if (!hasReaction) {
-    const reactionAnchor = postFooter.querySelector('.reaction--imageHidden');
-    if (reactionAnchor) {
-      reactionAnchor.setAttribute('href', reactionAnchor.getAttribute('href').replace('_id=1', '_id=33'));
-      reactionAnchor.click();
+ */
+const registerPostReaction = postFooter => {
+    const hasReaction = postFooter.querySelector('.has-reaction');
+    if (!hasReaction) {
+        const reactionAnchor = postFooter.querySelector('.reaction--imageHidden');
+        if (reactionAnchor) {
+            reactionAnchor.setAttribute('href', reactionAnchor.getAttribute('href').replace('_id=1', '_id=33'));
+            reactionAnchor.click();
+        }
     }
-  }
 };
 
 
