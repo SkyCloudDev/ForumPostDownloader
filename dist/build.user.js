@@ -5,7 +5,7 @@
 // @author SkyCloudDev
 // @author namechangeidiot
 // @description Downloads images and videos from posts
-// @version 2.9.0
+// @version 2.9.1
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.host.church/simpcityIcon192.png
@@ -1420,8 +1420,9 @@ const hosts = [
     ['pomf2.lain.la:File', [/pomf2.lain.la/]],
     ['nitter:image', [/nitter\.(.{1,20})\/pic/]],
     ['twitter.com:image', [/([~an@.]+)?twimg.com\//]],
-    ['pixhost.to:image', [/t(\d+)?\.pixhost.to\//, /pixhost.to\/gallery\//]],
+    ['pixhost.to:image', [/(t|img)(\d+)?\.pixhost.to\//, /pixhost.to\/gallery\//]],
     ['imagebam.com:image', [/imagebam.com\/(view|gallery)/]],
+    ['imagebam.com:full embed', [/images\d.imagebam.com/]],
     ['saint2.su:video', [/(saint2.su\/embed\/|([~an@]+\.)?saint2.su\/videos)/]],
     ['redgifs.com:video', [/!!redgifs.com(\/|\\\/)ifr.*?(?="|&quot;)/]],
     ['bunkr:',
@@ -1739,7 +1740,7 @@ const resolvers = [
             };
         },
     ],
-    [[/t(\d+)?\.pixhost.to\//, /:!pixhost.to\/gallery\//], url => url.replace(/t(\d+)\./gi, 'img$1.').replace(/thumbs\//i, 'images/')],
+    [[/(t|img)(\d+)?\.pixhost.to\//, /:!pixhost.to\/gallery\//], url => url.replace(/\/t(\d+)\./gi, 'img$1.').replace(/thumbs\//i, 'images/')],
     [
         [/pixhost.to\/gallery\//],
         async (url, http) => {
@@ -2510,6 +2511,7 @@ const resolvers = [
             }
         },
     ],
+    [[/images\d.imagebam.com/], url => url],
     [[/imgvb.com\/images\//, /:!imgvb.com\/album\//], url => url.replace('.th.', '.').replace('.md.', '.')],
     [
         [/imgvb.com\/album\//],
