@@ -5,7 +5,7 @@
 // @author SkyCloudDev
 // @author namechangeidiot
 // @description Downloads images and videos from posts
-// @version 2.9.1
+// @version 2.9.2
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.host.church/simpcityIcon192.png
@@ -67,6 +67,7 @@
 // @connect jpg2.su
 // @connect jpg3.su
 // @connect jpg4.su
+// @connect jpg5.su
 // @connect imgbox.com
 // @connect pixhost.to
 // @connect pomf2.lain.la
@@ -1402,7 +1403,7 @@ const hosts = [
     ['simpcity.su:Attachments', [/(\/attachments\/|\/data\/video\/)/]],
     ['coomer.party:Profiles', [/coomer.party\/[~an@._-]+\/user/]],
     ['coomer.party:image', [/(\w+\.)?coomer.party\/(data|thumbnail)/]],
-    ['jpg4.su:image', [/(simp\d+.)?host\.(church|fish|fishing|pet|su)\/(?!(images2\/0fya082315al2ed460420dbc052c2\.png|images2\/scc49c36a108cefc020\.png|images\/0fya082315al\.png|2024\/0fya082315al84db03fa9bf467e3\.png|img\/|a\/|album\/))/, /jpe?g.?\.(church|fish|fishing|pet|su)(\/a\/|\/album\/)[~an@-_.]+<no_qs>/]],
+    ['jpg5.su:image', [/(simp\d+.)?jpg\d\.(church|fish|fishing|pet|su)\/(?!(images2\/0fya082315al2ed460420dbc052c2\.png|images2\/scc49c36a108cefc020\.png|images\/0fya082315al\.png|2024\/0fya082315al84db03fa9bf467e3\.png|img\/|a\/|album\/))/, /jpe?g\d\.(church|fish|fishing|pet|su)(\/a\/|\/album\/)[~an@-_.]+<no_qs>/]],
     ['kemono.party:direct link', [/.{2,6}\.kemono.party\/data\//]],
     ['postimg.cc:image', [/!!https?:\/\/(www.)?i\.?(postimg|pixxxels).cc\/(.{8})/]], //[/!!https?:\/\/(www.)?postimg.cc\/(.{8})/]],
     ['ibb.co:image',
@@ -1571,14 +1572,14 @@ const resolvers = [
     ],
     [[/kemono.party\/data/], url => url],
     [
-        [/host\.(church|fish|fishing|pet|su)\//i, /:!jpe?.1\.(church|fish|fishing|pet|su)(\/a\/|\/album\/)/i],
+        [/jpg\d\.(church|fish|fishing|pet|su)\//i, /:!jpe?g\d\.(church|fish|fishing|pet|su)(\/a\/|\/album\/)/i],
         url =>
         url
         .replace('.th.', '.')
         .replace('.md.', '.')
     ],
     [
-        [/jpe?g.?\.(church|fish|fishing|pet|su)(\/a\/|\/album\/)/i],
+        [/jpe?g\d\.(church|fish|fishing|pet|su)(\/a\/|\/album\/)/i],
         async (url, http, spoilers, postId) => {
             url = url.replace(/\?.*/, '');
 
