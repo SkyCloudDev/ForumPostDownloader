@@ -1883,7 +1883,6 @@ const resolvers = [
                 // Start off without the cached url (bunkr-cache.se).
 
                 let resolvedURL = `https://${domain}.bunkr.ru/${filename}.${extension}`;
-                console.log(domain);
 
                 if (domain === "fries") {
                     const { status, dom } = await http.get(a.href);
@@ -2390,13 +2389,12 @@ const resolvers = [
                     },
                 });
             };
-            /*url = url.replace('cyberdrop.me/f','https://cyberdrop.me/api/f').replace('cyberdrop.me/e','https://cyberdrop.me/api/f');*/
+            url = url.replace('cyberdrop.me/f','https://cyberdrop.me/api/f').replace('cyberdrop.me/e','https://cyberdrop.me/api/f');
             await GM.xmlHttpRequest({
                 method: "GET",
                 url: url,
                 onload: function(response) {
                     const webData = JSON.parse(response.responseText);
-                    console.log("JSON: " + webData);
                     resolved=webData.url;
                 }
             });
