@@ -5,7 +5,7 @@
 // @author SkyCloudDev
 // @author namechangeidiot
 // @description Downloads images and videos from posts
-// @version 2.9.2
+// @version 2.9.3
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.host.church/simpcityIcon192.png
@@ -17,10 +17,10 @@
 // @require https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js
 // @require https://raw.githubusercontent.com/geraintluff/sha256/gh-pages/sha256.min.js
 // @connect self
-// @connect coomer.party
+// @connect coomer.su
 // @connect box.com
 // @connect boxcloud.com
-// @connect kemono.party
+// @connect kemono.su
 // @connect github.com
 // @connect big-taco-1img.bunkr.ru
 // @connect i-pizza.bunkr.ru
@@ -58,7 +58,6 @@
 // @connect i.ibb.co
 // @connect ibb.co
 // @connect imagebam.com
-// @connect host.church
 // @connect jpg.fish
 // @connect jpg.fishing
 // @connect jpg.pet
@@ -1400,47 +1399,48 @@ let processing = [];
  *
  */
 const hosts = [
-    ['simpcity.su:Attachments', [/(\/attachments\/|\/data\/video\/)/]],
-    ['coomer.party:Profiles', [/coomer.party\/[~an@._-]+\/user/]],
-    ['coomer.party:image', [/(\w+\.)?coomer.party\/(data|thumbnail)/]],
-    ['jpg5.su:image', [/(simp\d+.)?jpg\d\.(church|fish|fishing|pet|su)\/(?!(images2\/0fya082315al2ed460420dbc052c2\.png|images2\/scc49c36a108cefc020\.png|images\/0fya082315al\.png|2024\/0fya082315al84db03fa9bf467e3\.png|img\/|a\/|album\/))/, /jpe?g\d\.(church|fish|fishing|pet|su)(\/a\/|\/album\/)[~an@-_.]+<no_qs>/]],
-    ['kemono.party:direct link', [/.{2,6}\.kemono.party\/data\//]],
-    ['postimg.cc:image', [/!!https?:\/\/(www.)?i\.?(postimg|pixxxels).cc\/(.{8})/]], //[/!!https?:\/\/(www.)?postimg.cc\/(.{8})/]],
-    ['ibb.co:image',
+    ['Simpcity:Attachments', [/(\/attachments\/|\/data\/video\/)/]],
+    ['Coomer:Profiles', [/coomer.su\/[~an@._-]+\/user/]],
+    ['Coomer:image', [/(\w+\.)?coomer.su\/(data|thumbnail)/]],
+    ['JPG5:image', [/(simp\d+.)?jpg\d\.(church|fish|fishing|pet|su)\/(?!(images2\/0fya082315al2ed460420dbc052c2\.png|images2\/scc49c36a108cefc020\.png|images\/0fya082315al\.png|2024\/0fya082315al84db03fa9bf467e3\.png|img\/|a\/|album\/))/, /jpe?g\d\.(church|fish|fishing|pet|su)(\/a\/|\/album\/)[~an@-_.]+<no_qs>/]],
+    ['kemono:direct link', [/.{2,6}\.kemono.su\/data\//]],
+    ['Postimg:image', [/!!https?:\/\/(www.)?i\.?(postimg|pixxxels).cc\/(.{8})/]], //[/!!https?:\/\/(www.)?postimg.cc\/(.{8})/]],
+    ['Ibb:image',
         [
             /!!(?<=href=")https?:\/\/(www.)?([a-z](\d+)?\.)?ibb\.co\/([a-zA-Z0-9_.-]){7}((?=")|\/)(([a-zA-Z0-9_.-])+(?="))?/,
             /ibb.co\/album\/[~an@_.-]+/,
         ],
     ],
-    ['i.ibb.co:direct link', [/!!(?<=data-src=")https?:\/\/(www.)?([a-z](\d+)?\.)?ibb\.co\/([a-zA-Z0-9_.-]){7}((?=")|\/)(([a-zA-Z0-9_.-])+(?="))?/]],
-    ['imagevenue.com:image', [/!!https?:\/\/(www.)?imagevenue\.com\/(.{8})/]],
-    ['imgvb:image', [/imgvb.com\/images\//, /imgvb.com\/album/]],
-    ['imgbox.com:image', [/(thumbs|images)(\d+)?.imgbox.com\//, /imgbox.com\/g\//]],
-    ['onlyfans.com:image', [/public.onlyfans.com\/files/]],
-    ['reddit.com:image', [/(\w+)?.redd.it/]],
-    ['pomf2.lain.la:File', [/pomf2.lain.la/]],
-    ['nitter:image', [/nitter\.(.{1,20})\/pic/]],
-    ['twitter.com:image', [/([~an@.]+)?twimg.com\//]],
-    ['pixhost.to:image', [/(t|img)(\d+)?\.pixhost.to\//, /pixhost.to\/gallery\//]],
-    ['imagebam.com:image', [/imagebam.com\/(view|gallery)/]],
-    ['imagebam.com:full embed', [/images\d.imagebam.com/]],
-    ['saint2.su:video', [/(saint2.su\/embed\/|([~an@]+\.)?saint2.su\/videos)/]],
-    ['redgifs.com:video', [/!!redgifs.com(\/|\\\/)ifr.*?(?="|&quot;)/]],
-    ['bunkr:',
+    ['Ibb:direct link', [/!!(?<=data-src=")https?:\/\/(www.)?([a-z](\d+)?\.)?ibb\.co\/([a-zA-Z0-9_.-]){7}((?=")|\/)(([a-zA-Z0-9_.-])+(?="))?/]],
+    ['Imagevenue:image', [/!!https?:\/\/(www.)?imagevenue\.com\/(.{8})/]],
+    ['Imgvb:image', [/imgvb.com\/images\//, /imgvb.com\/album/]],
+    ['Imgbox:image', [/(thumbs|images)(\d+)?.imgbox.com\//, /imgbox.com\/g\//]],
+    ['Onlyfans:image', [/public.onlyfans.com\/files/]],
+    ['Reddit:image', [/(\w+)?.redd.it/]],
+    ['Pomf2:File', [/pomf2.lain.la/]],
+    ['Nitter:image', [/nitter\.(.{1,20})\/pic/]],
+    ['Twitter:image', [/([~an@.]+)?twimg.com\//]],
+    ['Pixhost:image', [/(t|img)(\d+)?\.pixhost.to\//, /pixhost.to\/gallery\//]],
+    ['Imagebam:image', [/imagebam.com\/(view|gallery)/]],
+    ['Imagebam:full embed', [/images\d.imagebam.com/]],
+    ['Saint:video', [/(saint2.su\/embed\/|([~an@]+\.)?saint2.su\/videos)/]],
+    ['Redgifs:video', [/!!redgifs.com(\/|\\\/)ifr.*?(?="|&quot;)/]],
+    ['Bunkr:',
         [
-            /!!(?<=href=")https:\/\/((stream|cdn(\d+)?)\.)?bunkrr?r?\.(ac|ax|black|cat|ci|fi|is|media|nu|red|ru|se|si|site|sk|ws|ru|su|org).*?(?=")|(?<=(href=")|(src="))https:\/\/((i|cdn|i-pizza|big-taco-1img)(\d+)?\.)?bunkrr?r?\.(ac|ax|black|cat|ci|fi|is|media|nu|red|ru|se|si|site|sk|ws|ru|su|org)\/(v\/)?.*?(?=")/,
-        ],
+            /!!(?<=href=")https:\/\/((stream|cdn(\d+)?)\.)?bunkrr?r?\.(ac|ax|black|cat|ci|fi|is|media|nu|red|ru|se|si|site|sk|ws|ru|su|org)(?!(\/a\/)).*?(?=")|(?<=(href=")|(src="))https:\/\/((i|cdn|i-pizza|big-taco-1img)(\d+)?\.)?bunkrr?r?\.(ac|ax|black|cat|ci|fi|is|media|nu|red|ru|se|si|site|sk|ws|ru|su|org)(?!(\/a\/))\/(v\/)?.*?(?=")/,
+        ]
     ],
-    ['give.xxx:Profiles', [/give.xxx\/[~an@_-]+/]],
-    ['pixeldrain.com:', [/(focus\.)?pixeldrain.com\/[lu]\//]],
-    ['gofile.com:', [/gofile.io\/d/]],
-    ['box.com:', [/m\.box\.com\//]],
-    ['yandex.ru:', [/(disk\.)?yandex\.[a-z]+/]],
-    ['cyberfile.me:', [/!!https:\/\/cyberfile.(su|me)\/\w+(\/)?(?=")/, /cyberfile.(su|me)\/folder\//]],
-    ['cyberdrop.me:', [/fs-\d+.cyberdrop.(me|to|cc|nl)\/|cyberdrop.me\/(f|e)\//, /cyberdrop.(me|to|cc|nl)\/a\//]],
-    ['pornhub.com:video', [/([~an@]+\.)?pornhub.com\/view_video/]],
-    ['noodlemagazine.com:video', [/(adult.)?noodlemagazine.com\/watch\//]],
-    ['spankbang.com:video', [/spankbang.com\/.*?\/video/]],
+    ['Bunkr:Albums', [/bunkrr?r?\.(ac|ax|black|cat|ci|fi|is|media|nu|red|ru|se|si|site|sk|ws|ru|su|org)\/a\//]],
+    ['Give.xxx:Profiles', [/give.xxx\/[~an@_-]+/]],
+    ['Pixeldrain:', [/(focus\.)?pixeldrain.com\/[lu]\//]],
+    ['Gofile:', [/gofile.io\/d/]],
+    ['Box.com:', [/m\.box\.com\//]],
+    ['Yandex:', [/(disk\.)?yandex\.[a-z]+/]],
+    ['Cyberfile:', [/!!https:\/\/cyberfile.(su|me)\/\w+(\/)?(?=")/, /cyberfile.(su|me)\/folder\//]],
+    //['Cyberdrop:', [/fs-\d+.cyberdrop.(me|to|cc|nl)\/|cyberdrop.me\/(f|e)\//, /cyberdrop.(me|to|cc|nl)\/a\//]],
+    ['Pornhub:video', [/([~an@]+\.)?pornhub.com\/view_video/]],
+    ['Noodlemagazine:video', [/(adult.)?noodlemagazine.com\/watch\//]],
+    ['Spankbang:video', [/spankbang.com\/.*?\/video/]],
 ];
 
 /**
@@ -1461,11 +1461,11 @@ const resolvers = [
         },
     ],
     [[/pomf2.lain.la/], url => url.replace(/pomf2.lain.la\/f\/(.*)\.(\w{3,4})(\?.*)?/, 'pomf2.lain.la/f/$1.$2')],
-    [[/coomer.party\/(data|thumbnail)/], url => url],
+    [[/coomer.su\/(data|thumbnail)/], url => url],
     [
-        [/coomer.party/, /:!coomer.party\/(data|thumbnail)/],
+        [/coomer.su/, /:!coomer.su\/(data|thumbnail)/],
         async (url, http) => {
-            const host = `https://coomer.party`;
+            const host = `https://coomer.su`;
 
             const profileId = url.replace(/\?.*/, '').split('/').reverse()[0];
 
@@ -1475,7 +1475,7 @@ const resolvers = [
 
             const posts = [];
 
-            console.log(`[coomer.party] Resolving profile: ${profileId}`);
+            console.log(`[coomer.su] Resolving profile: ${profileId}`);
 
             let page = 1;
 
@@ -1498,7 +1498,7 @@ const resolvers = [
                     finalURL = `${host}${nextPage.getAttribute('href')}`;
                 }
 
-                console.log(`[coomer.party] Resolved page: ${page}`);
+                console.log(`[coomer.su] Resolved page: ${page}`);
 
                 page++;
             } while (nextPage);
@@ -1551,7 +1551,7 @@ const resolvers = [
                     );
                 }
 
-                console.log(`[coomer.party] Resolved post ${index} / ${posts.length}`);
+                console.log(`[coomer.su] Resolved post ${index} / ${posts.length}`);
 
                 index++;
             }
@@ -1570,7 +1570,7 @@ const resolvers = [
             return dom.querySelector('.controls > nobr > a').getAttribute('href');
         },
     ],
-    [[/kemono.party\/data/], url => url],
+    [[/kemono.su\/data/], url => url],
     [
         [/jpg\d\.(church|fish|fishing|pet|su)\//i, /:!jpe?g\d\.(church|fish|fishing|pet|su)(\/a\/|\/album\/)/i],
         url =>
@@ -1616,7 +1616,7 @@ const resolvers = [
                         {},
                         {
                             Referer: url,
-                            Origin: 'https://jpg4.su',
+                            Origin: 'https://jpg5.su',
                             'Content-Type': 'application/x-www-form-urlencoded',
                         },
                     );
@@ -1638,7 +1638,7 @@ const resolvers = [
                 }
 
                 if (!authenticated) {
-                    log.host.error(postId, `::Could not resolve password protected album::: ${url}`, 'jpg4.su');
+                    log.host.error(postId, `::Could not resolve password protected album::: ${url}`, 'jpg5.su');
                     return null;
                 }
             }
@@ -1881,14 +1881,21 @@ const resolvers = [
                 }
 
                 // Start off without the cached url (bunkr-cache.se).
+
                 let resolvedURL = `https://${domain}.bunkr.ru/${filename}.${extension}`;
+                console.log(domain);
+
+                if (domain === "fries") {
+                    const { status, dom } = await http.get(a.href);
+                    resolvedURL = dom?.querySelector('source')?.getAttribute('src');
+                }
 
                 if (postSettings.verifyBunkrLinks) {
                     let status = null;
 
                     try {
                         console.log(`Verifying: ${resolvedURL}`);
-                        
+
                         await http.get(resolvedURL, {
                             onResponseHeadersReceieved: ({ status: s, request }) => {
                                 status = s;
@@ -2373,6 +2380,7 @@ const resolvers = [
             let resolved ="";
             if (url.includes('fs-')){
                 url = url.replace(/(fs|img)-\d+/i, '').replace(/(to|cc|nl)-\d+/i,'me');
+
                 let { source, dom } = await http.get(url, {
                     onStateChange: response => {
                         // If it's a redirect, we'll have to fetch the new url.
@@ -2382,12 +2390,13 @@ const resolvers = [
                     },
                 });
             };
-            url = url.replace('cyberdrop.me/f','https://cyberdrop.me/api/f').replace('cyberdrop.me/e','https://cyberdrop.me/api/f');
+            /*url = url.replace('cyberdrop.me/f','https://cyberdrop.me/api/f').replace('cyberdrop.me/e','https://cyberdrop.me/api/f');*/
             await GM.xmlHttpRequest({
                 method: "GET",
                 url: url,
                 onload: function(response) {
                     const webData = JSON.parse(response.responseText);
+                    console.log("JSON: " + webData);
                     resolved=webData.url;
                 }
             });
@@ -2929,7 +2938,7 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
                             basename = response.responseHeaders.match(/^content-disposition.+filename=(.+)$/im)[1].replace(/"/g, '');
                         } else if (url.includes('https://simpcity.su/attachments/')) {
                             basename = filename ? filename.name : h.basename(url).replace(/(.*)-(.{3,4})\.\d*$/i, '$1.$2');
-                        } else if (url.includes('kemono.party')) {
+                        } else if (url.includes('kemono.su')) {
                             basename = filename
                                 ? filename.name
                             : h
