@@ -4,7 +4,7 @@
 // @namespace https://github.com/SkyCloudDev
 // @author SkyCloudDev
 // @description Downloads images and videos from posts
-// @version 2.9.5
+// @version 2.9.6
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.host.church/simpcityIcon192.png
@@ -1792,6 +1792,7 @@ const resolvers = [
 
             // The file is an image.
             if (isImage || isImagExtension) {
+                console.log('Image');
                 if (isImagExtension) {
                     return `https://i-${domain}.bunkr.ru/${filename}.${extension}`;
                 }
@@ -1804,10 +1805,11 @@ const resolvers = [
             }
 
             // The file is a document or an archive.
-            if (/\w+\/d\//.test(url)) {
+            else {
                 console.log('Doc');
                 const { dom } = await http.get(url);
                 const downloadPageURL = dom?.querySelector(`a[href^="https://get.bunkr"]`)?.href;
+                console.log(downloadPageURL);
 
                 if (!downloadPageURL) {
                     return null;
