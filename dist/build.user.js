@@ -4,7 +4,7 @@
 // @namespace https://github.com/SkyCloudDev
 // @author SkyCloudDev
 // @description Downloads images and videos from posts
-// @version 2.9.6
+// @version 2.9.7
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.host.church/simpcityIcon192.png
@@ -1836,7 +1836,7 @@ const resolvers = [
 
             for (const f of containers) {
                 const a = f.querySelector('a');
-                const img = f.querySelector('a > img');
+                const img = f.querySelector('img');
 
                 const href = a?.href;
 
@@ -1856,7 +1856,6 @@ const resolvers = [
 
                     continue;
                 }
-
                 // The file is a document or an archive.
                 if (
                     href &&
@@ -1938,9 +1937,10 @@ const resolvers = [
                 }
 
                 files.push(resolvedURL);
+
             }
 
-            const infoContainer = dom.querySelector('h1.text-\\[24px\\]');
+            const infoContainer = dom.querySelector('h1');
             const parts = infoContainer?.outerText
             .split('\n')
             .map(t => t.trim())
