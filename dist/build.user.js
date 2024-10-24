@@ -4,7 +4,7 @@
 // @namespace https://github.com/SkyCloudDev
 // @author SkyCloudDev
 // @description Downloads images and videos from posts
-// @version 2.9.7
+// @version 2.9.8
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.host.church/simpcityIcon192.png
@@ -56,6 +56,7 @@
 // @connect cyberfile.me
 // @connect saint2.su
 // @connect saint2.pk
+// @connect saint2.cr
 // @connect redd.it
 // @connect onlyfans.com
 // @connect i.ibb.co
@@ -1426,7 +1427,7 @@ const hosts = [
     ['Pixhost:image', [/(t|img)(\d+)?\.pixhost.to\//, /pixhost.to\/gallery\//]],
     ['Imagebam:image', [/imagebam.com\/(view|gallery)/]],
     ['Imagebam:full embed', [/images\d.imagebam.com/]],
-    ['Saint:video', [/(saint2.(su|pk)\/embed\/|([~an@]+\.)?saint2.(su|pk)\/videos)/]],
+    ['Saint:video', [/(saint2.(su|pk|cr)\/embed\/|([~an@]+\.)?saint2.(su|pk|cr)\/videos)/]],
     ['Redgifs:video', [/!!redgifs.com(\/|\\\/)ifr.*?(?="|&quot;)/]],
     ['Bunkr:',
         [
@@ -2350,13 +2351,13 @@ const resolvers = [
             };
         },
     ],
-    [[/([~an@]+\.)?saint2.(su|pk)\/videos/], async url => url],
+    [[/([~an@]+\.)?saint2.(su|pk|cr)\/videos/], async url => url],
     [[/public.onlyfans.com\/files/], async url => url],
     [
-        [/saint2.(su|pk)\/embed/],
+        [/saint2.(su|pk|cr)\/embed/],
         async (url, http) => {
             const { dom } = await http.get(url);
-            return dom.querySelector('source')?.getAttribute('src');
+            return dom.querySelector('source')?.getAttribute('src').replace('.cr','.su');
         },
     ],
     [
