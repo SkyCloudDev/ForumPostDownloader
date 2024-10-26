@@ -4,7 +4,7 @@
 // @namespace https://github.com/SkyCloudDev
 // @author SkyCloudDev
 // @description Downloads images and videos from posts
-// @version 2.9.8
+// @version 2.9.9
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.host.church/simpcityIcon192.png
@@ -2357,7 +2357,7 @@ const resolvers = [
         [/saint2.(su|pk|cr)\/embed/],
         async (url, http) => {
             const { dom } = await http.get(url);
-            return dom.querySelector('source')?.getAttribute('src').replace('.cr','.su');
+            return dom.querySelector('source')?.getAttribute('src');
         },
     ],
     [
