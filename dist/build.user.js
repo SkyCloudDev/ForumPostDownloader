@@ -4,10 +4,10 @@
 // @namespace https://github.com/SkyCloudDev
 // @author SkyCloudDev
 // @description Downloads images and videos from posts
-// @version 2.9.9
+// @version 3.0
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
-// @icon https://simp4.host.church/simpcityIcon192.png
+// @icon https://simp4.jpg5.su/simpcityIcon192.png
 // @license WTFPL; http://www.wtfpl.net/txt/copying/
 // @match https://simpcity.su/threads/*
 // @require https://unpkg.com/@popperjs/core@2
@@ -2356,8 +2356,10 @@ const resolvers = [
     [
         [/saint2.(su|pk|cr)\/embed/],
         async (url, http) => {
-            const { dom } = await http.get(url);
-            return dom.querySelector('source')?.getAttribute('src');
+            const dom1 = await http.get(url);
+            const url2 = dom1.source.split('download:')[1].split("'")[1];
+            const { source, dom } = await http.get(url2);
+            return dom.querySelector('a')?.getAttribute('href');
         },
     ],
     [
@@ -2955,7 +2957,8 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
                             let basename_ext = basename.match(/.\w{3,6}$/);
                             basename = basename.replace(basename_ext,"").replace(/(\.\w{3,6}-\w{8}$)|(-\w{8}$)/,"") + basename_ext;
                         } else {
-                            basename = filename ? filename.name : h.basename(url).replace(/\?.*/, '').replace(/#.*/, '');
+                            const headerFilename = response.responseHeaders.match(/^content-disposition.+filename=(.+)$/im)[1].replace(/"/g, '');
+                            basename = filename ? filename.name : headerFilename ? headerFilename : h.basename(url).replace(/\?.*/, '').replace(/#.*/, '');
                         }
 
                         let ext = h.ext(basename);
