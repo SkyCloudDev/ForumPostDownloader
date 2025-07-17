@@ -4,7 +4,7 @@
 // @namespace https://github.com/SkyCloudDev
 // @author SkyCloudDev
 // @description Downloads images and videos from posts
-// @version 3.4
+// @version 3.5
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.host.church/simpcityIcon192.png
@@ -73,6 +73,7 @@
 // @connect jpg3.su
 // @connect jpg4.su
 // @connect jpg5.su
+// @connect jpg6.su
 // @connect selti-delivery.ru
 // @connect imgbox.com
 // @connect pixhost.to
@@ -1409,7 +1410,7 @@ const hosts = [
     ['Simpcity:Attachments', [/(\/attachments\/|\/data\/video\/)/]],
     ['Coomer:Profiles', [/coomer.su\/[~an@._-]+\/user/]],
     ['Coomer:image', [/(\w+\.)?coomer.su\/(data|thumbnail)/]],
-    ['JPG6:image', [/(simp\d+.)?(jpg\d\.(church|fish|fishing|pet|su))|selti-delivery\.ru\/(?!(images2\/0fya082315al2ed460420dbc052c2\.png|images2\/scc49c36a108cefc020\.png|images\/0fya082315al\.png|2024\/0fya082315al84db03fa9bf467e3\.png|img\/|a\/|album\/))/, /jpe?g\d\.(church|fish|fishing|pet|su)(\/a\/|\/album\/)[~an@-_.]+<no_qs>/]],
+    ['JPG6:image', [/(simp\d+\.)?(selti-delivery\.ru|jpg\d?\.(church|fish|fishing|pet|su))\/(?!(img\/|a\/|album\/))/, /jpe?g\d\.(church|fish|fishing|pet|su)(\/a\/|\/album\/)[~an@-_.]+<no_qs>/]],
     ['kemono:direct link', [/.{2,6}\.kemono.su\/data\//]],
     ['Postimg:image', [/!!https?:\/\/(www.)?i\.?(postimg|pixxxels).cc\/(.{8})/]], //[/!!https?:\/\/(www.)?postimg.cc\/(.{8})/]],
     ['Ibb:image',
