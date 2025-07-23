@@ -4,12 +4,13 @@
 // @namespace https://github.com/SkyCloudDev
 // @author SkyCloudDev
 // @description Downloads images and videos from posts
-// @version 3.5
+// @version 3.6
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.host.church/simpcityIcon192.png
 // @license WTFPL; http://www.wtfpl.net/txt/copying/
 // @match https://simpcity.su/threads/*
+// @match https://simpcity.cr/threads/*
 // @require https://unpkg.com/@popperjs/core@2
 // @require https://unpkg.com/tippy.js@6
 // @require https://unpkg.com/file-saver@2.0.4/dist/FileSaver.min.js
@@ -3032,21 +3033,15 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
         }
 
         if (!isFF && postSettings.zipped) {
-            GM_download({
-                url: URL.createObjectURL(blob),
-                name: `${title}/#${postNumber}.zip`,
-                onload: () => {
-                    blob = null;
-                },
-                onerror: response => {
-                    console.log(`Error writing file to disk. There may be more details below.`);
-                    console.log(response);
-                    console.log('Trying to write using JSZip...');
-                    saveAs(blob, filename);
-                    setProcessing(false, postId);
-                    console.log('Done!');
-                },
-            });
+            let blobUrl = URL.createObjectURL(blob);
+            let a = document.createElement('a');
+            a.href = blobUrl;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setProcessing(false, postId);
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
         }
 
         if (!isFF && !postSettings.zipped) {
