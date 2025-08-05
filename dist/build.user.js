@@ -947,11 +947,11 @@ const ui = {
      * @param checked
      * @returns {string}
      */
-        createCheckbox: (id, label, checked) => {
+        createCheckbox: (id, label, checked, disabled = false) => {
             return `
           <div class="menu-row" style="margin-top: -5px;">
             <label class="iconic" style="user-select: none">
-              <input type="checkbox" ${checked ? 'checked="checked"' : ''} id="${id}" />
+              <input type="checkbox" ${checked ? 'checked="checked"' : ''} ${disabled ? 'disabled="disabled"': ''} id="${id}" />
                 <i aria-hidden="true"></i>
                 <span
                   class="iconic-label"
@@ -1052,20 +1052,20 @@ const ui = {
                 /**
          * @returns {string}
          */
-                createZippedCheckbox: (postId, checked) => {
-                    return ui.forms.createCheckbox(`settings-${postId}-zipped`, 'Zipped', checked);
+                createZippedCheckbox: (postId, checked, disabled) => {
+                    return ui.forms.createCheckbox(`settings-${postId}-zipped`, 'Zipped', checked, disabled);
                 },
         /**
          * @returns {string}
          */
-                createFlattenCheckbox: (postId, checked) => {
-                    return ui.forms.createCheckbox(`settings-${postId}-flatten`, 'Flatten', checked);
+                createFlattenCheckbox: (postId, checked, disabled) => {
+                    return ui.forms.createCheckbox(`settings-${postId}-flatten`, 'Flatten', checked, disabled);
                 },
         /**
          * @returns {string}
          */
-                createSkipDownloadCheckbox: (postId, checked) => {
-                    return ui.forms.createCheckbox(`settings-${postId}-skip-download`, 'Skip Download', checked);
+                createSkipDownloadCheckbox: (postId, checked, disabled) => {
+                    return ui.forms.createCheckbox(`settings-${postId}-skip-download`, 'Skip Download', checked, disabled);
                 },
         /**
          * @returns {string}
@@ -1076,20 +1076,20 @@ const ui = {
         /**
          * @returns {string}
          */
-                createGenerateLinksCheckbox: (postId, checked) => {
-                    return ui.forms.createCheckbox(`settings-${postId}-generate-links`, 'Generate Links', checked);
+                createGenerateLinksCheckbox: (postId, checked, disabled) => {
+                    return ui.forms.createCheckbox(`settings-${postId}-generate-links`, 'Generate Links', checked, disabled);
                 },
         /**
          * @returns {string}
          */
-                createGenerateLogCheckbox: (postId, checked) => {
-                    return ui.forms.createCheckbox(`settings-${postId}-generate-log`, 'Generate Log', checked);
+                createGenerateLogCheckbox: (postId, checked, disabled) => {
+                    return ui.forms.createCheckbox(`settings-${postId}-generate-log`, 'Generate Log', checked, disabled);
                 },
                 /**
          * @returns {string}
          */
-                createSkipDuplicatesCheckbox: (postId, checked) => {
-                    return ui.forms.createCheckbox(`settings-${postId}-skip-duplicates`, 'Skip Duplicates', checked);
+                createSkipDuplicatesCheckbox: (postId, checked, disabled) => {
+                    return ui.forms.createCheckbox(`settings-${postId}-skip-duplicates`, 'Skip Duplicates', checked, disabled);
                 },
         /**
          * @param hosts
@@ -1175,12 +1175,12 @@ const ui = {
                     let formHtml = [
                         window.isFF ? ui.forms.config.post.createFilenameInput(customFilename, postId, color, defaultFilename) : null,
                         settingsHeading,
-                        !window.isFF ? ui.forms.config.post.createZippedCheckbox(postId, settings.zipped) : null,
-                        ui.forms.config.post.createFlattenCheckbox(postId, settings.flatten),
-                        ui.forms.config.post.createSkipDuplicatesCheckbox(postId, settings.skipDuplicates),
-                        ui.forms.config.post.createGenerateLinksCheckbox(postId, settings.generateLinks),
-                        ui.forms.config.post.createGenerateLogCheckbox(postId, settings.generateLog),
-                        ui.forms.config.post.createSkipDownloadCheckbox(postId, settings.skipDownload),
+                        !window.isFF ? ui.forms.config.post.createZippedCheckbox(postId, settings.zipped, settings.sendToJDownloader) : null,
+                        ui.forms.config.post.createFlattenCheckbox(postId, settings.flatten, settings.sendToJDownloader),
+                        ui.forms.config.post.createSkipDuplicatesCheckbox(postId, settings.skipDuplicates, settings.sendToJDownloader),
+                        ui.forms.config.post.createGenerateLinksCheckbox(postId, settings.generateLinks, settings.sendToJDownloader),
+                        ui.forms.config.post.createGenerateLogCheckbox(postId, settings.generateLog, settings.sendToJDownloader),
+                        ui.forms.config.post.createSkipDownloadCheckbox(postId, settings.skipDownload, settings.sendToJDownloader),
                         ui.forms.config.post.createSendToJDownloaderCheckbox(postId, settings.sendToJDownloader),
                         ui.forms.config.post.createHostCheckboxes(postId, filterLabel, hostsHtml, parsedHosts.length > 1),
                         ui.forms.createRow(
@@ -1242,7 +1242,9 @@ const ui = {
                             h.element(`#settings-${postId}-send-to-j-downloader`).addEventListener('change', e => {
                                 const checked = e.target.checked;
 
-                                settings.sendToJDownloader = e.target.checked;
+                                settings.sendToJDownloader = checked;
+                                
+                                GM_setValue('sendToJDownloader', checked);
 
                                 if (checked) {
                                     settings.skipDownload = true;
@@ -1263,7 +1265,9 @@ const ui = {
                                     h.element(`#settings-${postId}-generate-links`).checked = false;
                                     h.element(`#settings-${postId}-generate-links`).disabled = true;
                                 } else {
+                                    settings.zipped = true;
                                     settings.skipDownload = false;
+                                    h.element(`#settings-${postId}-zipped`).checked = true;
                                     h.element(`#settings-${postId}-skip-download`).checked = false;
                                     h.element(`#settings-${postId}-skip-download`).disabled = false;
                                     h.element(`#settings-${postId}-zipped`).disabled = false;
@@ -3318,17 +3322,34 @@ const selectedPosts = [];
 
         init.injectCustomStyles();
 
+        let sendToJDownloader = GM_getValue('sendToJDownloader', false);
+
+        sendToJDownloader = sendToJDownloader === '1' || sendToJDownloader === 'true' || sendToJDownloader === true;
+
         h.elements('.message-attribution-opposite').forEach(post => {
-            const settings = {
+            let settings = {
                 zipped: true,
                 flatten: false,
                 generateLinks: false,
                 generateLog: false,
                 skipDuplicates: false,
                 skipDownload: false,
-                sendToJDownloader: false,
+                sendToJDownloader,
                 output: [],
             };
+
+            if (settings.sendToJDownloader) {
+                settings = {
+                    zipped: false,
+                    flatten: false,
+                    generateLinks: false,
+                    generateLog: false,
+                    skipDuplicates: false,
+                    skipDownload: false,
+                    sendToJDownloader: true,
+                    output: [],
+                }
+            }
 
             const parsedPost = parsers.thread.parsePost(post);
 
