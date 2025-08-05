@@ -2646,7 +2646,7 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
             urls.push(...host.resources);
         }
 
-        let title = threadTitle.replace(/\s[\\\/]\s/g, settings.naming.invalidCharSubstitute).replace(/[\\\/]/g, ` ${settings.naming.invalidCharSubstitute} `);
+        let title = threadTitle.replace(/[\\\/]/g, settings.naming.invalidCharSubstitute).replace(/\&amp;/g, '&');
 
         const body = new URLSearchParams();
 
@@ -3002,7 +3002,7 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
 
                         let blob = URL.createObjectURL(response.response);
 
-                        let title = threadTitle.replace(/\s[\\\/]\s/g, settings.naming.invalidCharSubstitute).replace(/[\\\/]/g, ` ${settings.naming.invalidCharSubstitute} `);
+                        let title = threadTitle.replace(/[\\\/]/g, settings.naming.invalidCharSubstitute).replace(/\&amp;/g, '&');
 
                         // https://stackoverflow.com/a/53681022
                         fn = fn.replace(/[\x00-\x08\x0E-\x1F\x7F-\uFFFF]/g, '');
@@ -3085,7 +3085,7 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
     }
 
     if (totalDownloadable > 0) {
-        let title = threadTitle.replace(/[\\\/]/g, settings.naming.invalidCharSubstitute);
+        let title = threadTitle.replace(/[\\\/]/g, settings.naming.invalidCharSubstitute).replace(/\&amp;/g, '&');
         const filename = customFilename || `${title} #${postNumber}.zip`;
 
         log.separator(postId);
