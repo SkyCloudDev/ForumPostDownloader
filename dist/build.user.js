@@ -4,7 +4,7 @@
 // @namespace https://github.com/SkyCloudDev
 // @author SkyCloudDev
 // @description Downloads images and videos from posts
-// @version 3.7
+// @version 3.8
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.host.church/simpcityIcon192.png
@@ -17,6 +17,7 @@
 // @require https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js
 // @require https://raw.githubusercontent.com/geraintluff/sha256/gh-pages/sha256.min.js
 // @connect self
+// @connect 127.0.0.1
 // @connect coomer.su
 // @connect box.com
 // @connect boxcloud.com
@@ -1069,8 +1070,8 @@ const ui = {
         /**
          * @returns {string}
          */
-                createVerifyBunkrLinksCheckbox: (postId, checked) => {
-                    return ui.forms.createCheckbox(`settings-${postId}-verify-bunkr-links`, 'Verify Bunkr Links', checked);
+                createSendToJDownloaderCheckbox: (postId, checked) => {
+                    return ui.forms.createCheckbox(`settings-${postId}-send-to-j-downloader`, 'Send To JDownloader', checked);
                 },
         /**
          * @returns {string}
@@ -1097,7 +1098,7 @@ const ui = {
          */
                 createFilterLabel: (hosts, getTotalDownloadableResourcesCB) => {
                     return `
-          <div style="font-weight: bold; margin-top:5px; margin-bottom: 8px; margin-left: 8px; color: dodgerblue;">Filter <span id="filtered-count">(${getTotalDownloadableResourcesCB(
+          <div style="font-weight: bold; margin-top:5px; margin-bottom: 8px; margin-left: 16px; color: dodgerblue;">Filter <span id="filtered-count">(${getTotalDownloadableResourcesCB(
                         hosts,
                     )})</span></div>
           `;
@@ -1180,7 +1181,7 @@ const ui = {
                         ui.forms.config.post.createGenerateLinksCheckbox(postId, settings.generateLinks),
                         ui.forms.config.post.createGenerateLogCheckbox(postId, settings.generateLog),
                         ui.forms.config.post.createSkipDownloadCheckbox(postId, settings.skipDownload),
-                        ui.forms.config.post.createVerifyBunkrLinksCheckbox(postId, settings.verifyBunkrLinks),
+                        ui.forms.config.post.createSendToJDownloaderCheckbox(postId, settings.sendToJDownloader),
                         ui.forms.config.post.createHostCheckboxes(postId, filterLabel, hostsHtml, parsedHosts.length > 1),
                         ui.forms.createRow(
                             '<a href="#download-page" style="color: dodgerblue; font-weight: bold"><i class="fa fa-arrow-up"></i> Show Download Page Button</a>',
@@ -1238,8 +1239,40 @@ const ui = {
                                 setTimeout(() => (updateSettings = true), 100);
                             });
 
-                            h.element(`#settings-${postId}-verify-bunkr-links`).addEventListener('change', e => {
-                                settings.verifyBunkrLinks = e.target.checked;
+                            h.element(`#settings-${postId}-send-to-j-downloader`).addEventListener('change', e => {
+                                const checked = e.target.checked;
+
+                                settings.sendToJDownloader = e.target.checked;
+
+                                if (checked) {
+                                    settings.skipDownload = true;
+                                    settings.zipped = false;
+                                    settings.flatten = false;
+                                    settings.skipDuplicates = false;
+                                    settings.generateLog = false;
+                                    h.element(`#settings-${postId}-skip-download`).checked = true;
+                                    h.element(`#settings-${postId}-skip-download`).disabled = true;
+                                    h.element(`#settings-${postId}-zipped`).checked = false;
+                                    h.element(`#settings-${postId}-zipped`).disabled = true;
+                                    h.element(`#settings-${postId}-flatten`).checked = false;
+                                    h.element(`#settings-${postId}-flatten`).disabled = true;
+                                    h.element(`#settings-${postId}-generate-log`).checked = false;
+                                    h.element(`#settings-${postId}-generate-log`).disabled = true;
+                                    h.element(`#settings-${postId}-skip-duplicates`).checked = false;
+                                    h.element(`#settings-${postId}-skip-duplicates`).disabled = true;
+                                    h.element(`#settings-${postId}-generate-links`).checked = false;
+                                    h.element(`#settings-${postId}-generate-links`).disabled = true;
+                                } else {
+                                    settings.skipDownload = false;
+                                    h.element(`#settings-${postId}-skip-download`).checked = false;
+                                    h.element(`#settings-${postId}-skip-download`).disabled = false;
+                                    h.element(`#settings-${postId}-zipped`).disabled = false;
+                                    h.element(`#settings-${postId}-flatten`).disabled = false;
+                                    h.element(`#settings-${postId}-generate-log`).disabled = false;
+                                    h.element(`#settings-${postId}-skip-duplicates`).disabled = false;
+                                    h.element(`#settings-${postId}-generate-links`).disabled = false;
+                                }
+                                
                             });
 
                             if (!window.isFF) {
@@ -2560,6 +2593,8 @@ const setProcessing = (isProcessing, postId) => {
 };
 
 const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, getSettingsCB, statusUI, callbacks = {}) => {
+    const threadTitle = parsers.thread.parseTitle();
+
     const { postId, postNumber } = parsedPost;
 
     const postSettings = getSettingsCB();
@@ -2599,6 +2634,57 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
         width: '0%',
         marginBottom: '10px',
     });
+
+    if (postSettings.sendToJDownloader) {
+        const urls = [];
+        
+        for (const host of enabledHosts.filter(host => host.resources.length)) {
+            urls.push(...host.resources);
+        }
+
+        let title = threadTitle.replace(/[\\\/]/g, ` ${settings.naming.invalidCharSubstitute} `);
+
+        const body = new URLSearchParams();
+
+        body.append('urls', urls.join('\n'));
+        body.append('referer', 'https://simpcity.cr');
+        body.append('package', title);
+        body.append('description', 'Initiated by simpcity forum post downloader userscript.');
+        body.append('source', document.location.href.replace(/\?.*/, ''));
+
+        h.show(statusLabel);
+        h.ui.setText(statusLabel, 'Sending to JDownloader...');
+
+        GM_xmlhttpRequest({
+            url: 'http://127.0.0.1:9666/flashgot',
+            headers: {
+            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+            },
+            method: 'POST',
+            data: body,
+            onload: (response) => {
+                if (response.status === 200) {
+                    h.ui.setText(statusLabel, '- Sent to JDownloader successfully');
+                    log.post.info(postId, `::Sent to JDownloader successfully::`, postNumber);
+                } else {
+                    h.ui.setElProps(statusLabel, {
+                        color: '#ff5858',
+                    });
+                    h.ui.setText(statusLabel, '- Unable to send to JDownloader!');
+                    log.post.error(postId, `::Unable to send to JDownloader::`, postNumber);
+                }
+            },
+            onerror: () => {
+                h.ui.setElProps(statusLabel, {
+                    color: '#ff5858',
+                });
+                h.ui.setText(statusLabel, '- Unable to send to JDownloader. Make sure JDownloader is running.');
+                log.post.error(postId, `::Unable to send to JDownloader. Make sure JDownloader is running.::`, postNumber);
+            }
+        });
+
+        return;
+    }
 
     h.show(statusLabel);
     h.show(filePB);
@@ -2715,8 +2801,6 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
     log.separator(postId);
     log.post.info(postId, `::Found ${totalDownloadable} resource(s)::`, postNumber);
     log.separator(postId);
-
-    const threadTitle = parsers.thread.parseTitle();
 
     let customFilename = postSettings.output.find(o => o.postId === postId)?.value;
 
@@ -3242,7 +3326,7 @@ const selectedPosts = [];
                 generateLog: false,
                 skipDuplicates: false,
                 skipDownload: false,
-                verifyBunkrLinks: false,
+                sendToJDownloader: false,
                 output: [],
             };
 
