@@ -4,7 +4,7 @@
 // @namespace https://github.com/SkyCloudDev
 // @author SkyCloudDev
 // @description Downloads images and videos from posts
-// @version 3.8
+// @version 3.9
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.host.church/simpcityIcon192.png
@@ -61,8 +61,8 @@
 // @connect cyberdrop.to
 // @connect cyberfile.su
 // @connect cyberfile.me
+// @connect turbovid.cr
 // @connect saint2.su
-// @connect saint2.pk
 // @connect saint2.cr
 // @connect redd.it
 // @connect onlyfans.com
@@ -1437,7 +1437,7 @@ const hosts = [
     ['Pixhost:image', [/(t|img)(\d+)?\.pixhost.to\//, /pixhost.to\/gallery\//]],
     ['Imagebam:image', [/imagebam.com\/(view|gallery)/]],
     ['Imagebam:full embed', [/images\d.imagebam.com/]],
-    ['Saint:video', [/(saint2.(su|pk|cr)\/embed\/|([~an@]+\.)?saint2.(su|pk|cr)\/videos)/]],
+    ['turbovid:video', [/(turbovid.(cr)\/embed\/|([~an@]+\.)?turbovid.(cr)\/videos)/]],
     ['Redgifs:video', [/!!redgifs.com(\/|\\\/)ifr.*?(?="|&quot;)/]],
     ['Bunkr:',
         [
@@ -2264,11 +2264,14 @@ const resolvers = [
             };
         },
     ],
-    [[/([~an@]+\.)?saint2.(su|pk|cr)\/videos/], async url => url],
+    [[/([~an@]+\.)?turbovid.(cr)\/videos/], async url => url],
     [[/public.onlyfans.com\/files/], async url => url],
     [
-        [/saint2.(su|pk|cr)\/embed/],
+        [/turbovid.(cr)\/embed/],
         async (url, http) => {
+            // Replace turbovid.cr with saint2.su
+            url = url.replace('turbovid.cr', 'saint2.su');
+
             const { dom } = await http.get(url);
             return dom.querySelector('source')?.getAttribute('src');
         },
