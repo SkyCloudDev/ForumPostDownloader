@@ -4,7 +4,7 @@
 // @namespace https://github.com/SkyCloudDev
 // @author SkyCloudDev
 // @description Downloads images and videos from posts
-// @version 3.10
+// @version 3.11
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.host.church/simpcityIcon192.png
@@ -21,10 +21,10 @@
 // @require https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js
 // @require https://raw.githubusercontent.com/geraintluff/sha256/gh-pages/sha256.min.js
 // @connect self
-// @connect coomer.su
+// @connect coomer.st
 // @connect box.com
 // @connect boxcloud.com
-// @connect kemono.su
+// @connect kemono.cr
 // @connect github.com
 // @connect big-taco-1img.bunkr.ru
 // @connect i-pizza.bunkr.ru
@@ -62,6 +62,11 @@
 // @connect cyberfile.su
 // @connect cyberfile.me
 // @connect turbo.cr
+// @connect turbocdn.st
+// @connect dl1.turbocdn.st
+// @connect dl2.turbocdn.st
+// @connect dl3.turbocdn.st
+// @connect dl4.turbocdn.st
 // @connect saint2.su
 // @connect saint2.cr
 // @connect redd.it
@@ -1414,10 +1419,10 @@ let processing = [];
  */
 const hosts = [
     ['Simpcity:Attachments', [/(\/attachments\/|\/data\/video\/)/]],
-    ['Coomer:Profiles', [/coomer.su\/[~an@._-]+\/user/]],
-    ['Coomer:image', [/(\w+\.)?coomer.su\/(data|thumbnail)/]],
+    ['Coomer:Profiles', [/coomer.st\/[~an@._-]+\/user/]],
+    ['Coomer:image', [/(\w+\.)?coomer.st\/(data|thumbnail)/]],
     ['JPGX:image', [/(simp\d+\.)?(selti-delivery\.ru|jpg\d?\.(church|fish|fishing|pet|su|cr))\/(?!(img\/|a\/|album\/))/, /jpe?g\d\.(church|fish|fishing|pet|su|cr)(\/a\/|\/album\/)[~an@-_.]+<no_qs>/]],
-    ['kemono:direct link', [/.{2,6}\.kemono.su\/data\//]],
+    ['kemono:direct link', [/.{2,6}\.kemono.cr\/data\//]],
     ['Postimg:image', [/!!https?:\/\/(www.)?i\.?(postimg|pixxxels).cc\/(.{8})/]], //[/!!https?:\/\/(www.)?postimg.cc\/(.{8})/]],
     ['Ibb:image',
         [
@@ -1475,11 +1480,11 @@ const resolvers = [
         },
     ],
     [[/pomf2.lain.la/], url => url.replace(/pomf2.lain.la\/f\/(.*)\.(\w{3,4})(\?.*)?/, 'pomf2.lain.la/f/$1.$2')],
-    [[/coomer.su\/(data|thumbnail)/], url => url],
+    [[/coomer.st\/(data|thumbnail)/], url => url],
     [
-        [/coomer.su/, /:!coomer.su\/(data|thumbnail)/],
+        [/coomer.st/, /:!coomer.st\/(data|thumbnail)/],
         async (url, http) => {
-            const host = `https://coomer.su`;
+            const host = `https://coomer.st`;
 
             const profileId = url.replace(/\?.*/, '').split('/').reverse()[0];
 
@@ -1489,7 +1494,7 @@ const resolvers = [
 
             const posts = [];
 
-            console.log(`[coomer.su] Resolving profile: ${profileId}`);
+            console.log(`[coomer.st] Resolving profile: ${profileId}`);
 
             let page = 1;
 
@@ -1512,7 +1517,7 @@ const resolvers = [
                     finalURL = `${host}${nextPage.getAttribute('href')}`;
                 }
 
-                console.log(`[coomer.su] Resolved page: ${page}`);
+                console.log(`[coomer.st] Resolved page: ${page}`);
 
                 page++;
             } while (nextPage);
@@ -1565,7 +1570,7 @@ const resolvers = [
                     );
                 }
 
-                console.log(`[coomer.su] Resolved post ${index} / ${posts.length}`);
+                console.log(`[coomer.st] Resolved post ${index} / ${posts.length}`);
 
                 index++;
             }
@@ -1584,7 +1589,7 @@ const resolvers = [
             return dom.querySelector('.controls > nobr > a').getAttribute('href');
         },
     ],
-    [[/kemono.su\/data/], url => url],
+    [[/kemono.cr\/data/], url => url],
     [
         [/(jpg\d\.(church|fish|fishing|pet|su|cr))|selti-delivery\.ru\//i, /:!jpe?g\d\.(church|fish|fishing|pet|su|cr)(\/a\/|\/album\/)/i],
         url =>
@@ -2269,11 +2274,44 @@ const resolvers = [
     [
         [/turbo.(cr)\/embed/],
         async (url, http) => {
-            // Replace turbo.cr with saint2.su
-            url = url.replace('turbo.cr', 'saint2.su');
+const m = url.match(/\/embed\/([^\/?#]+)/i);
+            const id = m ? m[1] : null;
+            if (!id) {
+                return null;
+            }
 
-            const { dom } = await http.get(url);
-            return dom.querySelector('source')?.getAttribute('src');
+            const embedUrl = `https://turbo.cr/embed/${id}`;
+            const signUrls = [
+                `https://turbo.cr/api/sign?v=${encodeURIComponent(id)}` ,
+                `https://turbo.cr/sign?v=${encodeURIComponent(id)}` ,// legacy fallback
+            ];
+
+            // Primary: use Turbo's sign endpoint (player does this)
+            for (const signUrl of signUrls) {
+                try {
+                    const { source, status } = await http.get(signUrl, {}, { Referer: embedUrl }, 'text');
+                    if (status === 200 && source) {
+                        const j = JSON.parse(source);
+                        if (j && j.success && j.url) {
+                            return j.url;
+                        }
+                    }
+                } catch (e) {}
+            }
+
+            // Fallback: try to read <source> / <video> directly if present
+            try {
+                const { dom } = await http.get(embedUrl, {}, { Referer: embedUrl });
+                const src =
+                    dom?.querySelector('source[src]')?.getAttribute('src') ||
+                    dom?.querySelector('video[src]')?.getAttribute('src');
+                if (src) {
+                    return new URL(src, embedUrl).toString();
+                }
+            } catch (e) {}
+
+            return null;
+
         },
     ],
     [
@@ -2794,6 +2832,9 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
                 if (url.includes('pomf2')){
                     reflink = "https://pomf2.lain.la"
                 }
+                if (url.includes('turbocdn.st')){
+                    reflink = "https://turbo.cr/"
+                }
                 const ellipsedUrl = h.limit(url, 80);
                 log.post.info(postId, `::Downloading::: ${url}`, postNumber);
                 const request = GM_xmlhttpRequest({
@@ -2858,7 +2899,7 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
                             basename = response.responseHeaders.match(/^content-disposition.+filename=(.+)$/im)[1].replace(/"/g, '');
                         } else if (url.includes('https://simpcity.su/attachments/')) {
                             basename = filename ? filename.name : h.basename(url).replace(/(.*)-(.{3,4})\.\d*$/i, '$1.$2');
-                        } else if (url.includes('kemono.su')) {
+                        } else if (url.includes('kemono.cr')) {
                             basename = filename
                                 ? filename.name
                             : h
