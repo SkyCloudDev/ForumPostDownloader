@@ -4,7 +4,7 @@
 // @namespace https://github.com/SkyCloudDev
 // @author SkyCloudDev
 // @description Downloads images and videos from posts
-// @version 3.11
+// @version 3.12
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.host.church/simpcityIcon192.png
@@ -1064,31 +1064,31 @@ const ui = {
                 createZippedCheckbox: (postId, checked) => {
                     return ui.forms.createCheckbox(`settings-${postId}-zipped`, 'Zipped', checked);
                 },
-        /**
+                /**
          * @returns {string}
          */
                 createFlattenCheckbox: (postId, checked) => {
                     return ui.forms.createCheckbox(`settings-${postId}-flatten`, 'Flatten', checked);
                 },
-        /**
+                /**
          * @returns {string}
          */
                 createSkipDownloadCheckbox: (postId, checked) => {
                     return ui.forms.createCheckbox(`settings-${postId}-skip-download`, 'Skip Download', checked);
                 },
-        /**
+                /**
          * @returns {string}
          */
                 createVerifyBunkrLinksCheckbox: (postId, checked) => {
                     return ui.forms.createCheckbox(`settings-${postId}-verify-bunkr-links`, 'Verify Bunkr Links', checked);
                 },
-        /**
+                /**
          * @returns {string}
          */
                 createGenerateLinksCheckbox: (postId, checked) => {
                     return ui.forms.createCheckbox(`settings-${postId}-generate-links`, 'Generate Links', checked);
                 },
-        /**
+                /**
          * @returns {string}
          */
                 createGenerateLogCheckbox: (postId, checked) => {
@@ -1100,7 +1100,7 @@ const ui = {
                 createSkipDuplicatesCheckbox: (postId, checked) => {
                     return ui.forms.createCheckbox(`settings-${postId}-skip-duplicates`, 'Skip Duplicates', checked);
                 },
-        /**
+                /**
          * @param hosts
          * @param getTotalDownloadableResourcesCB
          * @returns {string}
@@ -1425,10 +1425,10 @@ const hosts = [
     ['kemono:direct link', [/.{2,6}\.kemono.cr\/data\//]],
     ['Postimg:image', [/!!https?:\/\/(www.)?i\.?(postimg|pixxxels).cc\/(.{8})/]], //[/!!https?:\/\/(www.)?postimg.cc\/(.{8})/]],
     ['Ibb:image',
-        [
-            /!!(?<=href=")https?:\/\/(www.)?([a-z](\d+)?\.)?ibb\.co\/([a-zA-Z0-9_.-]){7}((?=")|\/)(([a-zA-Z0-9_.-])+(?="))?/,
-            /ibb.co\/album\/[~an@_.-]+/,
-        ],
+     [
+         /!!(?<=href=")https?:\/\/(www.)?([a-z](\d+)?\.)?ibb\.co\/([a-zA-Z0-9_.-]){7}((?=")|\/)(([a-zA-Z0-9_.-])+(?="))?/,
+         /ibb.co\/album\/[~an@_.-]+/,
+     ],
     ],
     ['Ibb:direct link', [/!!(?<=data-src=")https?:\/\/(www.)?([a-z](\d+)?\.)?ibb\.co\/([a-zA-Z0-9_.-]){7}((?=")|\/)(([a-zA-Z0-9_.-])+(?="))?/]],
     ['Imagevenue:image', [/!!https?:\/\/(www.)?imagevenue\.com\/(.{8})/]],
@@ -1442,12 +1442,13 @@ const hosts = [
     ['Pixhost:image', [/(t|img)(\d+)?\.pixhost.to\//, /pixhost.to\/gallery\//]],
     ['Imagebam:image', [/imagebam.com\/(view|gallery)/]],
     ['Imagebam:full embed', [/images\d.imagebam.com/]],
-    ['turbo:video', [/(turbo.(cr)\/embed\/|([~an@]+\.)?turbo.(cr)\/videos)/]],
+    ['turbo:video', [/([\w-]+\.)?turbo\.cr\/(embed|v|d)\//]],
+    ['turbo:albums', [/([\w-]+\.)?turbo\.cr\/a\//]],
     ['Redgifs:video', [/!!redgifs.com(\/|\\\/)ifr.*?(?="|&quot;)/]],
     ['Bunkr:',
-        [
-            /!!(?<=href=")https:\/\/((stream|cdn(\d+)?)\.)?bunkrr?r?\.(ac|ax|black|cat|ci|cr|fi|is|media|nu|pk|ph|ps|red|ru|se|si|site|sk|ws|ru|su|org)(?!(\/a\/)).*?(?=")|(?<=(href=")|(src="))https:\/\/((i|cdn|i-pizza|big-taco-1img)(\d+)?\.)?bunkrr?r?\.(ac|ax|black|cat|ci|cr|fi|is|media|nu|pk|ph|ps|red|ru|se|si|site|sk|ws|ru|su|org)(?!(\/a\/))\/(v\/)?.*?(?=")/,
-        ]
+     [
+         /!!(?<=href=")https:\/\/((stream|cdn(\d+)?)\.)?bunkrr?r?\.(ac|ax|black|cat|ci|cr|fi|is|media|nu|pk|ph|ps|red|ru|se|si|site|sk|ws|ru|su|org)(?!(\/a\/)).*?(?=")|(?<=(href=")|(src="))https:\/\/((i|cdn|i-pizza|big-taco-1img)(\d+)?\.)?bunkrr?r?\.(ac|ax|black|cat|ci|cr|fi|is|media|nu|pk|ph|ps|red|ru|se|si|site|sk|ws|ru|su|org)(?!(\/a\/))\/(v\/)?.*?(?=")/,
+     ]
     ],
     ['Bunkr:Albums', [/bunkrr?r?\.(ac|ax|black|cat|ci|cr|fi|is|media|nu|pk|ph|ps|red|ru|se|si|site|sk|ws|ru|su|org)\/a\//]],
     ['Give.xxx:Profiles', [/give.xxx\/[~an@_-]+/]],
@@ -2269,12 +2270,188 @@ const resolvers = [
             };
         },
     ],
-    [[/([~an@]+\.)?turbo.(cr)\/videos/], async url => url],
+    [
+        [/([\w-]+\.)?turbo\.cr\/a\//],
+        async (url, http) => {
+            const { dom, source } = await http.get(url);
+
+            // Album folder naming (stable + readable): turbo_<albumId> - <title>
+            const mAlbum = url.match(/\/a\/([^\/?#]+)/i);
+            const albumId = mAlbum ? mAlbum[1] : null;
+            const base = albumId ? `turbo_${albumId}` : 'turbo_album';
+
+            const rawTitle = dom?.querySelector('h1')?.textContent?.trim() || '';
+            const invalidSub = settings.naming.invalidCharSubstitute || '_';
+
+            let safeTitle = rawTitle
+            .replace(/[\\/:*?"<>|]/g, invalidSub)
+            .replace(/\s+/g, ' ')
+            .trim();
+
+            // Cap title to avoid extremely long Windows paths
+            if (safeTitle.length > 120) safeTitle = safeTitle.slice(0, 120).trim();
+
+            let folderName = base;
+            if (safeTitle && safeTitle.toLowerCase() !== base.toLowerCase()) {
+                folderName = `${safeTitle} - ${base}`;
+            }
+
+            // Final sanitize (defensive)
+            folderName = folderName
+                .replace(/[\\/:*?"<>|]/g, invalidSub)
+                .replace(/\s+/g, ' ')
+                .trim();
+
+            // Hard cap for safety
+            if (folderName.length > 180) folderName = folderName.slice(0, 180).trim();
+
+            // Map videoId -> original filename (from album HTML)
+            const idToName = new Map();
+
+            // Collect video ids (and names) from the table rows (server-rendered HTML)
+            let ids = Array.from(dom?.querySelectorAll('tr.file-row') || [])
+            .map(row => {
+                const a = row.querySelector('a[href^="/v/"]');
+                const id = (a?.getAttribute('href') || '').match(/\/v\/([^\/?#]+)/i)?.[1];
+                if (id) {
+                    const nm = row.getAttribute('data-name') || row.dataset?.name;
+                    if (nm) idToName.set(id, nm);
+                }
+                return id;
+            })
+            .filter(Boolean)
+            .unique();
+
+            // Fallback: regex scan (if DOM parsing fails)
+            if (!ids.length && source) {
+                ids = (source.match(/href="\/v\/([^"?#]+)"/gi) || [])
+                    .map(s => (s.match(/\/v\/([^"?#]+)/i) || [null, null])[1])
+                    .filter(Boolean)
+                    .unique();
+            }
+
+            const resolved = [];
+
+            for (const id of ids) {
+                const embedUrl = `https://turbo.cr/embed/${id}`;
+                const signUrls = [
+                    `https://turbo.cr/api/sign?v=${encodeURIComponent(id)}`,
+                    `https://turbo.cr/sign?v=${encodeURIComponent(id)}`, // legacy fallback
+                ];
+
+                let signed = null;
+
+                for (const signUrl of signUrls) {
+                    try {
+                        const { source: s, status } = await http.get(signUrl, {}, { Referer: embedUrl }, 'text');
+                        if (status === 200 && s) {
+                            const j = JSON.parse(s);
+                            if (j && j.success && j.url) {
+                                signed = j.url;
+                                const originalName = j.original_filename || idToName.get(id);
+                                if (signed && originalName) {
+                                    // Ensure filename is preserved for Turbo CDN downloads
+                                    if (!/[?&]fn=/.test(signed)) {
+                                        const enc = encodeURIComponent(String(originalName)).replace(/%20/g, '+');
+                                        signed += (signed.includes('?') ? '&' : '?') + 'fn=' + enc;
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                    } catch (e) {}
+                }
+
+                // Fallback: if signing fails, try to read media URL from the embed page
+                if (!signed) {
+                    try {
+                        const { dom: edom } = await http.get(embedUrl, {}, { Referer: embedUrl });
+                        const src =
+                              edom?.querySelector('source[src]')?.getAttribute('src') ||
+                              edom?.querySelector('video[src]')?.getAttribute('src');
+                        if (src) {
+                            signed = new URL(src, embedUrl).toString();
+                        }
+                    } catch (e) {}
+                }
+
+                // If we got a Turbo CDN URL and have an original name, attach fn=
+                if (signed && /turbocdn\.st/i.test(signed)) {
+                    const originalName = idToName.get(id);
+                    if (originalName && !/[?&]fn=/.test(signed)) {
+                        const enc = encodeURIComponent(String(originalName)).replace(/%20/g, '+');
+                        signed += (signed.includes('?') ? '&' : '?') + 'fn=' + enc;
+                    }
+                }
+
+                // If sign fails, keep a workable fallback
+                resolved.push(signed || `https://turbo.cr/d/${id}`);
+            }
+
+            return {
+                dom,
+                source,
+                folderName,
+                resolved,
+            };
+        },
+    ],
+    [
+        [/([\w-]+\.)?turbo\.cr\/(v|d)\//],
+        async (url, http) => {
+            const mm = url.match(/\/(v|d)\/([^\/?#]+)/i);
+            let id = mm ? mm[2] : null;
+            if (!id) {
+                return url;
+            }
+
+            const embedUrl = `https://turbo.cr/embed/${id}`;
+            const signUrls = [
+                `https://turbo.cr/api/sign?v=${encodeURIComponent(id)}`,
+                `https://turbo.cr/sign?v=${encodeURIComponent(id)}`, // legacy fallback
+            ];
+
+            for (const signUrl of signUrls) {
+                try {
+                    const { source, status } = await http.get(signUrl, {}, { Referer: embedUrl }, 'text');
+                    if (status === 200 && source) {
+                        const j = JSON.parse(source);
+                        if (j && j.success && j.url) {
+                            let signed = j.url;
+                            const originalName = j.original_filename;
+                            if (signed && originalName) {
+                                // Ensure filename is preserved for Turbo CDN downloads
+                                if (!/[?&]fn=/.test(signed)) {
+                                    const enc = encodeURIComponent(String(originalName)).replace(/%20/g, '+');
+                                    signed += (signed.includes('?') ? '&' : '?') + 'fn=' + enc;
+                                }
+                            }
+                            return signed;
+                        }
+                    }
+                } catch (e) {}
+            }
+
+            // Fallback: try to read <source>/<video> directly from the embed page
+            try {
+                const { dom } = await http.get(embedUrl, {}, { Referer: embedUrl });
+                const src =
+                      dom?.querySelector('source[src]')?.getAttribute('src') ||
+                      dom?.querySelector('video[src]')?.getAttribute('src');
+                if (src) {
+                    return new URL(src, embedUrl).toString();
+                }
+            } catch (e) {}
+
+            // Last fallback: the site's direct download route
+            return `https://turbo.cr/d/${id}`;
+        },
+    ],
     [[/public.onlyfans.com\/files/], async url => url],
     [
-        [/turbo.(cr)\/embed/],
+        [/([\w-]+\.)?turbo\.cr\/embed/],
         async (url, http) => {
-const m = url.match(/\/embed\/([^\/?#]+)/i);
+            const m = url.match(/\/embed\/([^\/?#]+)/i);
             const id = m ? m[1] : null;
             if (!id) {
                 return null;
@@ -2293,7 +2470,16 @@ const m = url.match(/\/embed\/([^\/?#]+)/i);
                     if (status === 200 && source) {
                         const j = JSON.parse(source);
                         if (j && j.success && j.url) {
-                            return j.url;
+                            let signed = j.url;
+                            const originalName = j.original_filename;
+                            if (signed && originalName) {
+                                // Ensure filename is preserved for Turbo CDN downloads
+                                if (!/[?&]fn=/.test(signed)) {
+                                    const enc = encodeURIComponent(String(originalName)).replace(/%20/g, '+');
+                                    signed += (signed.includes('?') ? '&' : '?') + 'fn=' + enc;
+                                }
+                            }
+                            return signed;
                         }
                     }
                 } catch (e) {}
@@ -2303,8 +2489,8 @@ const m = url.match(/\/embed\/([^\/?#]+)/i);
             try {
                 const { dom } = await http.get(embedUrl, {}, { Referer: embedUrl });
                 const src =
-                    dom?.querySelector('source[src]')?.getAttribute('src') ||
-                    dom?.querySelector('video[src]')?.getAttribute('src');
+                      dom?.querySelector('source[src]')?.getAttribute('src') ||
+                      dom?.querySelector('video[src]')?.getAttribute('src');
                 if (src) {
                     return new URL(src, embedUrl).toString();
                 }
@@ -2376,9 +2562,9 @@ const m = url.match(/\/embed\/([^\/?#]+)/i);
                     url: file,
                     onload: function(response) {
                         if (response.status == 200) {
-                        const webData = JSON.parse(response.responseText);
-                        dl_url = webData.url;
-                        resolved.push(dl_url);
+                            const webData = JSON.parse(response.responseText);
+                            dl_url = webData.url;
+                            resolved.push(dl_url);
                         } else {
                             error_resolved = true;
                         }
@@ -2499,8 +2685,8 @@ const m = url.match(/\/embed\/([^\/?#]+)/i);
     ],
     [
         [/(\/attachments\/|\/data\/video\/)/],
-            async (url) => {
-                url = url.replace('/attachments/', 'https://simpcity.su/attachments/').replace('/data/video/', 'https://simpcity.su/data/video/')
+        async (url) => {
+            url = url.replace('/attachments/', 'https://simpcity.su/attachments/').replace('/data/video/', 'https://simpcity.su/data/video/')
             return url;
         },
     ],
@@ -2756,6 +2942,37 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
     const filenames = [];
     const mimeTypes = [];
 
+    const usedPaths = new Set();
+
+    const ensureUniquePath = path => {
+        let p = String(path || '').trim();
+        if (!p) {
+            p = 'file';
+        }
+
+        if (!usedPaths.has(p)) {
+            usedPaths.add(p);
+            return p;
+        }
+
+        const parts = p.split('/');
+        const base = parts.pop();
+        const dir = parts.length ? parts.join('/') : '';
+        const ext = h.ext(base);
+        const stem = ext ? h.fnNoExt(base) : base;
+
+        let i = 2;
+        while (true) {
+            const candidateBase = ext ? `${stem} (${i}).${ext}` : `${stem} (${i})`;
+            const candidate = dir ? `${dir}/${candidateBase}` : candidateBase;
+            if (!usedPaths.has(candidate)) {
+                usedPaths.add(candidate);
+                return candidate;
+            }
+            i++;
+        }
+    };
+
     setProcessing(true, postId);
 
     log.separator(postId);
@@ -2912,7 +3129,22 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
                             let basename_ext = basename.match(/.\w{3,6}$/);
                             basename = basename.replace(basename_ext,"").replace(/(\.\w{3,6}-\w{8}$)|(-\w{8}$)/,"") + basename_ext;
                         } else {
-                            basename = filename ? filename.name : h.basename(url).replace(/\?.*/, '').replace(/#.*/, '');
+                            // Turbo CDN signed URLs include the original filename in the fn= query param.
+                            // Without this, we'd end up saving as the short id (e.g. uVOxoqFFlDGrZ.mp4).
+                            if (url.includes('turbocdn.st')) {
+                                const m = url.match(/[?&]fn=([^&]+)/i);
+                                if (m && m[1]) {
+                                    try {
+                                        basename = decodeURIComponent(m[1].replace(/\+/g, '%20'));
+                                    } catch (e) {
+                                        basename = m[1];
+                                    }
+                                }
+                            }
+
+                            if (!basename) {
+                                basename = filename ? filename.name : h.basename(url).replace(/\?.*/, '').replace(/#.*/, '');
+                            }
                         }
 
                         let ext = h.ext(basename);
@@ -2967,6 +3199,9 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
 
                         // https://stackoverflow.com/a/53681022
                         fn = fn.replace(/[\x00-\x08\x0E-\x1F\x7F-\uFFFF]/g, '');
+
+                        fn = ensureUniquePath(fn);
+                        basename = h.basename(fn);
 
                         if (!isFF) {
                             fn = `${fn}`;
@@ -3216,8 +3451,8 @@ async function cyberdrop_helper(file) {
         url: file,
         onload: async function(response) {
             if (response.status == 200) {
-            const webData = JSON.parse(response.responseText);
-            url_dl = webData.url;
+                const webData = JSON.parse(response.responseText);
+                url_dl = webData.url;
             } else {
                 error_resolved = true;
             }
@@ -3231,7 +3466,7 @@ async function cyberdrop_helper(file) {
     }
 
     return url_dl;
-  }
+}
 
 const parsedPosts = [];
 const selectedPosts = [];
