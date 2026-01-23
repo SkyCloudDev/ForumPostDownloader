@@ -4,7 +4,7 @@
 // @namespace https://github.com/SkyCloudDev
 // @author SkyCloudDev
 // @description Downloads images and videos from posts
-// @version 3.12
+// @version 3.13
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.host.church/simpcityIcon192.png
@@ -106,6 +106,7 @@
 // @connect spankbang.com
 // @connect sb-cd.com
 // @connect gofile.io
+// @connect api.gofile.io
 // @connect phncdn.com
 // @connect xvideos.com
 // @connect give.xxx
@@ -116,6 +117,7 @@
 // @grant GM_setValue
 // @grant GM_getValue
 // @grant GM_log
+// @grant GM_openInTab
 
 // ==/UserScript==
 const JSZip = window.JSZip;
@@ -211,7 +213,7 @@ const settings = {
     },
     hosts: {
         goFile: {
-            token: 'KPQJgKlYsy8JPmbuxj3MC4e5PFEpdZYP',
+            token: '',
         },
     },
     ui: {
@@ -244,6 +246,10 @@ const settings = {
         ],
     },
 };
+
+// GoFile filename hints (from API) so we don't rely on URL-encoded path segments
+const gofileNameById = new Map();
+const gofileNameByUrl = new Map();
 
 const h = {
     /**
@@ -2027,41 +2033,188 @@ const resolvers = [
     [
         [/gofile.io\/d/],
         async (url, http, spoilers, postId) => {
-            const resolveAlbum = async (url, spoilers) => {
-                const contentId = url.split('/').reverse()[0];
+        const WT_KEY = 'xfpd_gofile_wt';
+        const AT_KEY = 'xfpd_gofile_at';
+        const WT_MAX_AGE_MS = 24 * 3600 * 1000;
+        const AT_MAX_AGE_MS = 24 * 3600 * 1000;
 
-                const apiUrl = `https://api.gofile.io/contents/${contentId}?wt=4fd6sg89d7s6`;
+        const gmGet = (key, fallback) => {
+            try {
+                return typeof GM_getValue === 'function' ? GM_getValue(key, fallback) : fallback;
+            } catch (e) {
+                return fallback;
+            }
+        };
 
-                let { source } = await http.get(apiUrl, {}, { 'Authorization': `Bearer ${settings.hosts.goFile.token}` });
+        const gmSet = (key, val) => {
+            try {
+                if (typeof GM_setValue === 'function') GM_setValue(key, val);
+            } catch (e) {}
+        };
 
-                if (h.contains('error-notFound', source)) {
-                    log.host.error(postId, `::Album not found::: ${url}`, 'gofile.io');
-                    return null;
-                }
+        const gmReq = async (method, url, data = null, headers = {}, responseType = 'text') => {
+            return await http.base(method, url, {}, headers, data, responseType);
+        };
 
-                if (h.contains('error-notPublic', source)) {
-                    log.host.error(postId, `::Album not public::: ${url}`, 'gofile.io');
-                    return null;
-                }
+        const getWebsiteToken = async (force = false) => {
+            const now = Date.now();
+            const cached = gmGet(WT_KEY, null);
 
-                let props = JSON.parse(source?.toString());
+            if (!force && cached && cached.value && cached.ts && now - cached.ts < WT_MAX_AGE_MS) {
+                return cached.value;
+            }
 
-                if (h.contains('error-passwordRequired', source) && spoilers.length) {
-                    log.host.info(postId, `::Album requires password::: ${url}`, 'gofile.io');
+            const candidates = ['https://gofile.io/dist/js/config.js', 'https://gofile.io/dist/js/alljs.js'];
 
-                    if (spoilers.length) {
-                        log.host.info(postId, `::Trying with ${spoilers.length} available password(s)::`, 'gofile.io');
+            for (const u of candidates) {
+                try {
+                    const { source } = await gmReq('GET', u, null, {}, 'text');
+                    const txt = source || '';
+
+                    const m =
+                        txt.match(/\bwt\s*=\s*"([^"]+)"/) ||
+                        txt.match(/fetchData\.wt\s*=\s*"([^"]+)"/) ||
+                        txt.match(/"wt"\s*:\s*"([^"]+)"/);
+
+                    if (m && m[1]) {
+                        gmSet(WT_KEY, { value: m[1], ts: now });
+                        return m[1];
                     }
+                } catch (e) {}
+            }
+
+            throw new Error('Could not extract GoFile website token (WT).');
+        };
+
+        const createAccountToken = async wt => {
+            const { source } = await gmReq(
+                'POST',
+                'https://api.gofile.io/accounts',
+                JSON.stringify({}),
+                {
+                    accept: 'application/json',
+                    'content-type': 'application/json',
+                    'x-website-token': wt,
+                },
+                'text',
+            );
+
+            const json = JSON.parse(source || '{}');
+
+            if (!json || json.status !== 'ok' || !json.data || !json.data.token) {
+                throw new Error(`createAccount failed: ${json?.message || json?.status || 'unknown'}`);
+            }
+
+            const token = json.data.token;
+
+            try {
+                settings.hosts.goFile.token = token;
+            } catch (e) {}
+
+            gmSet(AT_KEY, { token, ts: Date.now() });
+            return token;
+        };
+
+        const getAccountToken = async (force = false) => {
+            // If the user provided a personal Bearer token, always use it.
+            // (This is optional; leaving it empty keeps the anonymous account-token flow.)
+            try {
+                const override = settings?.hosts?.goFile?.bearerOverride;
+                if (override && String(override).trim() !== '') {
+                    return String(override).trim();
+                }
+            } catch (e) {}
+
+            const now = Date.now();
+
+            const cached = gmGet(AT_KEY, null);
+            if (!force && cached && cached.token && cached.ts && now - cached.ts < AT_MAX_AGE_MS) {
+                try {
+                    settings.hosts.goFile.token = cached.token;
+                } catch (e) {}
+                return cached.token;
+            }
+
+            try {
+                if (!force && settings && settings.hosts && settings.hosts.goFile && settings.hosts.goFile.token) {
+                    return settings.hosts.goFile.token;
+                }
+            } catch (e) {}
+
+            const wt = await getWebsiteToken(false);
+            return await createAccountToken(wt);
+        };
+
+        const apiContentsRaw = async (contentId, passwordHash, wt, token) => {
+            let apiUrl = `https://api.gofile.io/contents/${encodeURIComponent(contentId)}`;
+            if (passwordHash) apiUrl += `?password=${encodeURIComponent(passwordHash)}`;
+
+            const { source } = await gmReq(
+                'GET',
+                apiUrl,
+                null,
+                {
+                    accept: 'application/json',
+                    authorization: `Bearer ${token}`,
+                    'x-website-token': wt,
+                },
+                'text',
+            );
+
+            return JSON.parse(source || '{}');
+        };
+
+        const apiContents = async (contentId, passwordHash) => {
+            let wt = await getWebsiteToken(false);
+            let token = await getAccountToken(false);
+
+            let json = await apiContentsRaw(contentId, passwordHash, wt, token);
+            if (json && json.status === 'ok') return json;
+
+            const s = String(json?.status || json?.message || '').toLowerCase();
+
+            if (s.includes('unauthorized') || s.includes('token') || s.includes('invalid')) {
+                wt = await getWebsiteToken(true);
+                token = await getAccountToken(true);
+                json = await apiContentsRaw(contentId, passwordHash, wt, token);
+                return json;
+            }
+
+            return json;
+        };
+
+        const resolveAlbum = async (urlOrId, spoilers) => {
+            const id = String(urlOrId).includes('gofile.io/d/') ? String(urlOrId).split('/').reverse()[0] : String(urlOrId);
+
+            let props = await apiContents(id, null);
+
+            if (props && props.status === 'error-notFound') {
+                log.host.error(postId, `::Album not found::: ${urlOrId}`, 'gofile.io');
+                    return null;
+                }
+
+            if (props && props.status === 'error-notPublic') {
+                log.host.error(postId, `::Album not public::: ${urlOrId}`, 'gofile.io');
+                    return null;
+                }
+
+            if (props && props.status === 'error-passwordRequired') {
+                log.host.info(postId, `::Album requires password::: ${urlOrId}`, 'gofile.io');
+
+                if (!spoilers || !spoilers.length) {
+                    return props;
+                }
+
+                        log.host.info(postId, `::Trying with ${spoilers.length} available password(s)::`, 'gofile.io');
 
                     for (const spoiler of spoilers) {
                         const hash = sha256(spoiler);
+                    const attempt = await apiContents(id, hash);
 
-                        const { source } = await http.get(`${apiUrl}&password=${hash}`);
-
-                        props = JSON.parse(source?.toString());
-
-                        if (props && props.status === 'ok') {
+                    if (attempt && attempt.status === 'ok') {
                             log.host.info(postId, `::Successfully authenticated with:: ${spoiler}`, 'gofile.io');
+                        props = attempt;
+                        break;
                         }
                     }
                 }
@@ -2073,8 +2226,12 @@ const resolvers = [
 
             let folderName = h.basename(url);
 
-            if (!props) {
+        if (!props || props.status !== 'ok' || !props.data) {
+            if (props && props.status === 'error-passwordRequired') {
+                log.host.error(postId, `::Password required (no valid password found)::: ${url}`, 'gofile.io');
+            } else {
                 log.host.error(postId, `::Unable to resolve album::: ${url}`, 'gofile.io');
+            }
 
                 return {
                     dom: null,
@@ -2093,16 +2250,41 @@ const resolvers = [
 
                 const resolved = [];
 
-                folderName = props.data.name;
+            folderName = props.data.name || folderName;
 
                 const files = props.data.children;
 
                 for (const file in files) {
                     const obj = files[file];
+
+                if (!obj) continue;
+
                     if (obj.type === 'file') {
-                        resolved.push(files[file].link);
-                    } else {
-                        const folderProps = await resolveAlbum(obj.code, spoilers);
+                    const fileId = obj.id || obj.code;
+                    const fileName = encodeURIComponent(obj.name || fileId || 'file');
+
+                    // Prefer direct/CDN links when available. Do NOT force /download/web/
+                    // (web flow can return album HTML).
+                    const candidates = [obj.directLink, obj.link, obj.downloadLink].filter(Boolean);
+                    let link =
+                        candidates.find(u => /\/download\/direct\//i.test(String(u))) ||
+                        candidates[0] ||
+                        (fileId ? `https://gofile.io/download/web/${fileId}/${fileName}` : null);
+
+                    if (link) {
+                        // Preserve original GoFile filename (from API) so we don't rely on URL-encoded path segment.
+                        try {
+                            if (obj.name) {
+                                if (fileId) gofileNameById.set(String(fileId), String(obj.name));
+                                if (link) gofileNameByUrl.set(String(link), String(obj.name));
+                            }
+                        } catch (e) {}resolved.push(link);
+                    }
+                } else if (obj.type === 'folder') {
+                    const folderId = obj.id || obj.code;
+                    if (!folderId) continue;
+
+                    const folderProps = await resolveAlbum(folderId, spoilers);
                         resolved.push(...(await getChildAlbums(folderProps, spoilers)));
                     }
                 }
@@ -3021,8 +3203,29 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
 
         const batches = [];
 
-        for (let i = 0; i < totalDownloadable; i += batchLength) {
-            batches.push(resources.slice(i, i + batchLength));
+        // Build batches:
+// - keep existing concurrency (batchLength) for speed
+// - but never put more than ONE GoFile item in the same batch (prevents GoFile "gate" spam / soft-block cascades)
+const isGoFileUrlBatch = u => /gofile\.io/i.test(String(u || ''));
+
+let tmp = [];
+let tmpHasGoFile = false;
+
+for (const item of resources) {
+    const isGF = isGoFileUrlBatch(item.url);
+    // if current batch is full OR would contain 2x GoFile -> flush
+    if (tmp.length >= batchLength || (tmpHasGoFile && isGF)) {
+        batches.push(tmp);
+        tmp = [];
+        tmpHasGoFile = false;
+    }
+
+    tmp.push(item);
+    if (isGF) tmpHasGoFile = true;
+}
+
+if (tmp.length) {
+    batches.push(tmp);
         }
 
         const getNextBatch = () => {
@@ -3040,8 +3243,29 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
         let batch = getNextBatch();
 
         while (batch.length) {
-            for (const { url, host, original, folderName } of batch) {
+
+            const GOFILE_WARMUP_MS = 3000;
+            const isGoFileUrl = u => /gofile\.io/i.test(String(u || ''));
+            const gofileWarmupAttempted = new Set();
+
+            const gofileWarmupOpenTab = warmUrl => {
+                try {
+                    const tab = GM_openInTab(warmUrl, { active: false, insert: true, setParent: true });
+                    if (tab && typeof tab.close === 'function') {
+                        setTimeout(() => {
+                            try { tab.close(); } catch (e) {}
+                        }, GOFILE_WARMUP_MS);
+                    }
+                } catch (e) {}
+            };
+
+            const startDownload = (resource, pass = 1) => {
+                const { url, host, original, folderName } = resource;
+                const isGoFile = isGoFileUrl(url);
+                const progressKey = isGoFile ? `${url}@@gofilepass${pass}` : url;
+
                 h.ui.setElProps(statusLabel, { fontWeight: 'normal' });
+
                 var reflink = original;
                 if (url.includes('bunkr')){
                     reflink = "https://bunkr.si"
@@ -3052,8 +3276,10 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
                 if (url.includes('turbocdn.st')){
                     reflink = "https://turbo.cr/"
                 }
+
                 const ellipsedUrl = h.limit(url, 80);
-                log.post.info(postId, `::Downloading::: ${url}`, postNumber);
+                log.post.info(postId, `::Downloading${isGoFile && pass > 1 ? ' (retry)' : ''}::: ${url}`, postNumber);
+
                 const request = GM_xmlhttpRequest({
                     url,
                     headers: {
@@ -3091,15 +3317,47 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
                                 width: `${(response.loaded / response.total) * 100}%`,
                             });
                         }
-                        const p = requestProgress.find(r => r.url === url);
-                        p.new = response.loaded;
+                        const p = requestProgress.find(r => r.url === progressKey);
+                        if (p) p.new = response.loaded;
                     },
                     onload: response => {
+                        const p = requestProgress.find(r => r.url === progressKey);
+                        if (p) clearInterval(p.intervalId);
+
+                        // GoFile: detect soft-block / HTML gate
+                        if (isGoFile) {
+                            const mCt = /content-type:\s*([^\r\n]+)/i.exec(response.responseHeaders || '');
+                            const ct = mCt && mCt[1] ? mCt[1] : '';
+                            const isHtml = /text\/html|application\/xhtml\+xml/i.test(ct);
+                            const badStatus = !response.status || response.status >= 400;
+
+                            if (badStatus || isHtml) {
+                                if (pass === 1 && !gofileWarmupAttempted.has(url)) {
+                                    gofileWarmupAttempted.add(url);
+                                    log.post.info(postId, `::GoFile warm-up -> open tab (${GOFILE_WARMUP_MS}ms) then retry [1/2]::: ${url}`, postNumber);
+                                    gofileWarmupOpenTab(url);
+                                    setTimeout(() => startDownload(resource, 2), GOFILE_WARMUP_MS);
+                                    return;
+                                }
+
+                                // Retry failed -> mark as unsuccessful and continue.
                         completed++;
                         completedBatchedDownloads++;
 
-                        const p = requestProgress.find(r => r.url === url);
-                        clearInterval(p.intervalId);
+                                h.ui.setText(statusLabel, `${completed} / ${totalDownloadable} 🢒 ${ellipsedUrl}`);
+                                h.ui.setElProps(statusLabel, { color: '#b23b3b' });
+                                h.ui.setElProps(totalPB, {
+                                    width: `${(completed / totalDownloadable) * 100}%`,
+                                });
+
+                                log.post.error(postId, `::GoFile failed (after retry)::: ${url}`, postNumber);
+                                return;
+                            }
+                        }
+
+                        // Success path (unchanged)
+                        completed++;
+                        completedBatchedDownloads++;
 
                         h.ui.setText(statusLabel, `${completed} / ${totalDownloadable} 🢒 ${ellipsedUrl}`);
                         h.ui.setElProps(statusLabel, { color: '#2d9053' });
@@ -3108,7 +3366,26 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
                         });
 
                         // TODO: Extract to method.
-                        const filename = filenames.find(f => f.url === url);
+                        let filename = filenames.find(f => f.url === url);
+                        if (!filename && isGoFile) {
+                            // GoFile URLs may be re-resolved to a file-*.gofile.io host, so match by GoFile fileId.
+                            const mGf = String(url).match(/\/download\/(?:web|direct)\/([^\/?#]+)\//i);
+                            const gid = mGf && mGf[1] ? mGf[1] : null;
+                            if (gid) {
+                                filename = filenames.find(f => f && f.gofileId === gid);
+
+                                // If the per-run filenames list doesn't know this URL (e.g. re-resolved host),
+                                // fall back to the global GoFile hint maps populated during /d/ resolution.
+                                if (!filename) {
+                                    const hinted =
+                                        gofileNameById.get(String(gid)) ||
+                                        gofileNameByUrl.get(String(url));
+                                    if (hinted) {
+                                        filename = { url, name: String(hinted), gofileId: String(gid) };
+                                    }
+                                }
+                            }
+                        }
 
                         let basename;
 
@@ -3229,24 +3506,47 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
                         }
                     },
                     onerror: () => {
+                        const p = requestProgress.find(r => r.url === progressKey);
+                        if (p) clearInterval(p.intervalId);
+
+                        if (isGoFile && pass === 1 && !gofileWarmupAttempted.has(url)) {
+                            gofileWarmupAttempted.add(url);
+                            log.post.info(postId, `::GoFile warm-up -> open tab (${GOFILE_WARMUP_MS}ms) then retry [1/2]::: ${url}`, postNumber);
+                            gofileWarmupOpenTab(url);
+                            setTimeout(() => startDownload(resource, 2), GOFILE_WARMUP_MS);
+                            return;
+                        }
+
                         completed++;
                         completedBatchedDownloads++;
                     },
                 });
 
-                requests.push({ url, request });
+                requests.push({ url: progressKey, request });
 
                 const intervalId = setInterval(() => {
-                    const p = requestProgress.find(r => r.url === url);
+                    const p = requestProgress.find(r => r.url === progressKey);
+                    if (!p) return;
                     if (p.old === p.new) {
-                        const r = requests.find(r => r.url === url);
-                        r.request.abort();
+                        const r = requests.find(r => r.url === progressKey);
+                        if (r && r.request) r.request.abort();
                         clearInterval(p.intervalId);
+
+                        // Treat GoFile stall as a first-attempt failure -> warm-up + retry once.
+                        if (isGoFile && pass === 1 && !gofileWarmupAttempted.has(url)) {
+                            gofileWarmupAttempted.add(url);
+                            log.post.info(postId, `::GoFile warm-up (stall) -> open tab (${GOFILE_WARMUP_MS}ms) then retry [1/2]::: ${url}`, postNumber);
+                            gofileWarmupOpenTab(url);
+                            setTimeout(() => startDownload(resource, 2), GOFILE_WARMUP_MS);
+                            return;
+                        }
+
                         if (completed < totalDownloadable) {
                             completed++;
                         }
 
                         completedBatchedDownloads++;
+
                         if (completedBatchedDownloads >= batch.length) {
                             completedBatchedDownloads = 0;
                         }
@@ -3255,7 +3555,11 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
                     }
                 }, 30000);
 
-                requestProgress.push({ url, intervalId, old: 0, new: 0 });
+                requestProgress.push({ url: progressKey, intervalId, old: 0, new: 0 });
+            };
+
+            for (const item of batch) {
+                startDownload(item, 1);
             }
 
             while (completedBatchedDownloads < batch.length) {
@@ -3481,29 +3785,7 @@ const selectedPosts = [];
     });
 
     document.addEventListener('DOMContentLoaded', async () => {
-        const goFileTokenFetchFailedErr = 'Failed to create GoFile token. GoFile albums may not work. Refresh the browser to retry.';
 
-        if (h.isNullOrUndef(settings.hosts.goFile.token) || settings.hosts.goFile.token.trim() === '') {
-            // TODO: Persist to local storage
-            try {
-                console.log('Creating GoFile token');
-                const { source } = await h.http.get('https://api.gofile.io/createAccount');
-                if (h.isNullOrUndef(source) || source.trim() === '') {
-                    console.error(goFileTokenFetchFailedErr);
-                } else {
-                    const props = JSON.parse(source);
-                    if (props.status === 'ok' && props.data) {
-                        const token = props.data.token;
-                        settings.hosts.goFile.token = token;
-                        console.log(`Created GoFile token: ${token}`);
-                    } else {
-                        console.error(goFileTokenFetchFailedErr);
-                    }
-                }
-            } catch (e) {
-                console.error(goFileTokenFetchFailedErr);
-            }
-        }
 
         try {
             const { source } = await h.http.get('https://api.redgifs.com/v2/auth/temporary');
