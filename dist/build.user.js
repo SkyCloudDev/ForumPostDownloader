@@ -4,7 +4,7 @@
 // @namespace https://github.com/SkyCloudDev
 // @author SkyCloudDev
 // @description Downloads images and videos from posts
-// @version 3.13
+// @version 3.14
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.host.church/simpcityIcon192.png
@@ -28,6 +28,18 @@
 // @connect github.com
 // @connect big-taco-1img.bunkr.ru
 // @connect i-pizza.bunkr.ru
+// @connect scdn.st
+// @connect *.scdn.st
+// @connect cache8.st
+// @connect *.cache8.st
+// @connect *.bunkr.ru
+// @connect *.bunkr-cache.se
+// @connect gigachad-cdn.ru
+// @connect *.gigachad-cdn.ru
+// @connect *.cdn.gigachad-cdn.ru
+// @connect cake.bunkr.ru
+// @connect b-cdn.net
+// @connect *.b-cdn.net
 // @connect bunkr.ac
 // @connect bunkr.ax
 // @connect bunkr.black
@@ -100,6 +112,8 @@
 // @connect media.tumblr.com
 // @connect pixeldrain.com
 // @connect redgifs.com
+// @connect api.redgifs.com
+// @connect *.redgifs.com
 // @connect rule34.xxx
 // @connect noodlemagazine.com
 // @connect pvvstream.pro
@@ -1073,6 +1087,9 @@ const ui = {
                 /**
          * @returns {string}
          */
+                /**
+         * @returns {string}
+         */
                 createFlattenCheckbox: (postId, checked) => {
                     return ui.forms.createCheckbox(`settings-${postId}-flatten`, 'Flatten', checked);
                 },
@@ -1190,8 +1207,7 @@ const ui = {
                     let formHtml = [
                         window.isFF ? ui.forms.config.post.createFilenameInput(customFilename, postId, color, defaultFilename) : null,
                         settingsHeading,
-                        !window.isFF ? ui.forms.config.post.createZippedCheckbox(postId, settings.zipped) : null,
-                        ui.forms.config.post.createFlattenCheckbox(postId, settings.flatten),
+                        ui.forms.config.post.createZippedCheckbox(postId, settings.zipped),                        ui.forms.config.post.createFlattenCheckbox(postId, settings.flatten),
                         ui.forms.config.post.createSkipDuplicatesCheckbox(postId, settings.skipDuplicates),
                         ui.forms.config.post.createGenerateLinksCheckbox(postId, settings.generateLinks),
                         ui.forms.config.post.createGenerateLogCheckbox(postId, settings.generateLog),
@@ -1257,14 +1273,12 @@ const ui = {
                             h.element(`#settings-${postId}-verify-bunkr-links`).addEventListener('change', e => {
                                 settings.verifyBunkrLinks = e.target.checked;
                             });
-
-                            if (!window.isFF) {
-                                h.element(`#settings-${postId}-zipped`).addEventListener('change', e => {
-                                    settings.zipped = e.target.checked;
-                                });
-                            }
-
-                            h.element(`#settings-${postId}-generate-links`).addEventListener('change', e => {
+                            h.element(`#settings-${postId}-zipped`).addEventListener('change', e => {
+                                settings.zipped = e.target.checked;                                if (updateSettings) {
+                                    setPrevSettings(settings);
+                                }
+                            });
+h.element(`#settings-${postId}-generate-links`).addEventListener('change', e => {
                                 settings.generateLinks = e.target.checked;
 
                                 if (updateSettings) {
@@ -1450,7 +1464,8 @@ const hosts = [
     ['Imagebam:full embed', [/images\d.imagebam.com/]],
     ['turbo:video', [/([\w-]+\.)?turbo\.cr\/(embed|v|d)\//]],
     ['turbo:albums', [/([\w-]+\.)?turbo\.cr\/a\//]],
-    ['Redgifs:video', [/!!redgifs.com(\/|\\\/)ifr.*?(?="|&quot;)/]],
+    ['Redgifs:video', [/!!redgifs.com(\/|\\\/)ifr.*?(?=["']|&quot;)/]],
+    ['Redgifs:user', [/redgifs\.com\/users\//]],
     ['Bunkr:',
      [
          /!!(?<=href=")https:\/\/((stream|cdn(\d+)?)\.)?bunkrr?r?\.(ac|ax|black|cat|ci|cr|fi|is|media|nu|pk|ph|ps|red|ru|se|si|site|sk|ws|ru|su|org)(?!(\/a\/)).*?(?=")|(?<=(href=")|(src="))https:\/\/((i|cdn|i-pizza|big-taco-1img)(\d+)?\.)?bunkrr?r?\.(ac|ax|black|cat|ci|cr|fi|is|media|nu|pk|ph|ps|red|ru|se|si|site|sk|ws|ru|su|org)(?!(\/a\/))\/(v\/)?.*?(?=")/,
@@ -1827,61 +1842,154 @@ const resolvers = [
             }
         },
     ],
-    [
-        [/bunkrr?r?\.(ac|ax|black|cat|ci|cr|fi|is|media|nu|pk|ph|ps|red|ru|se|si|site|sk|ws|su|org)\/a\//],
-        async (url, http, _, __) => {
-            const { dom, source } = await http.get(url);
-            const containers = dom.querySelectorAll('.grid-images > div');
-            const files = [];
+[
+    [/bunkrr?r?\.(ac|ax|black|cat|ci|cr|fi|is|media|nu|pk|ph|ps|red|ru|se|si|site|sk|ws|su|org)\/a\//],
+    async (url, http, _, __, ___, progressCB) => {
+        const cleanUrl = String(url || '').split('#')[0];
+        const baseUrl = cleanUrl.split('?')[0].replace(/\/+$/, '');
 
-            for (const f of containers) {
-                const a = f.querySelector('a[class="after:absolute after:z-10 after:inset-0"]');
-                if (!a) continue;
+        const resolved = [];
+        const seen = new Set();
 
-                const href = a.getAttribute('href');
-                if (!href || !href.includes('/f/')) continue;
+        let firstDom = null;
+        let firstSource = null;
 
-                const id = href.split('/f/')[1];
+        const sanitizeName = s => String(s || '')
+            .replace(/[\\/:*?"<>|]/g, '-')
+            .replace(/\s+/g, ' ')
+            .trim();
 
-                const response = await http.post(
-                    `https://bunkr.cr/api/vs`,
-                    JSON.stringify({ slug: id }),
-                    {},
-                    { 'Content-Type': 'application/json' }
-                );
+        const decodeFinalUrl = data => {
+            try {
+                if (!data || !data.url) return null;
+                if (!data.encrypted) return data.url;
 
-                const data = JSON.parse(response.source);
+                const binaryString = atob(data.url);
+                const keyBytes = new TextEncoder().encode(`SECRET_KEY_${Math.floor(data.timestamp / 3600)}`);
 
-                let finalURL;
-                if (!data.encrypted) {
-                    finalURL = data.url;
-                } else {
-                    const binaryString = atob(data.url);
-                    const keyBytes = new TextEncoder().encode(`SECRET_KEY_${Math.floor(data.timestamp / 3600)}`);
-                    finalURL = Array.from(binaryString)
-                        .map((char, i) => String.fromCharCode(char.charCodeAt(0) ^ keyBytes[i % keyBytes.length]))
-                        .join('');
-                }
+                return Array.from(binaryString)
+                    .map((char, i) => String.fromCharCode(char.charCodeAt(0) ^ keyBytes[i % keyBytes.length]))
+                    .join('');
+            } catch (e) {
+                return null;
+            }
+        };
 
-                files.push(finalURL);
+        const extractSlugsFromDom = dom => {
+            const containers = dom?.querySelectorAll?.('.grid-images > div') || [];
+            const slugs = [];
+
+            for (const c of containers) {
+                const a =
+                    c.querySelector('a[class="after:absolute after:z-10 after:inset-0"]') ||
+                    c.querySelector('a[href*="/f/"]') ||
+                    c.querySelector('a[href*="/v/"]') ||
+                    c.querySelector('a[href*="/d/"]');
+
+                const href = a?.getAttribute?.('href') || '';
+                const m = href.match(/\/(f|v|d)\/([^\/?#]+)/i);
+                if (m && m[2]) slugs.push(m[2]);
             }
 
-            const infoContainer = dom.querySelector('h1');
-            const parts = infoContainer?.outerText
-            .split('\n')
-            .map(t => t.trim())
-            .filter(t => t !== '');
-            const OrigAlbumName = parts.length ? parts[0].trim() : url.split('/').reverse()[0];
-            const albumName = OrigAlbumName.replaceAll('/', '-').replace('&amp;', '');
+            return slugs;
+        };
 
-            return {
-                dom,
-                source,
-                folderName: albumName,
-                resolved: files.filter(file => file),
-            };
+        const asyncPool = async (limit, items, worker) => {
+            const results = new Array(items.length);
+            let i = 0;
+
+            const runners = Array.from({ length: Math.max(1, limit) }, async () => {
+                while (true) {
+                    const idx = i++;
+                    if (idx >= items.length) break;
+                    try {
+                        results[idx] = await worker(items[idx], idx);
+                    } catch (e) {
+                        results[idx] = null;
+                    }
+                }
+            });
+
+            await Promise.all(runners);
+            return results;
+        };
+
+        const origin = (() => {
+            try { return new URL(baseUrl).origin; } catch (e) { return 'https://bunkr.cr'; }
+        })();
+
+        const vsEndpoint = `${origin}/api/vs`;
+
+        let folderName = null;
+
+        const MAX_PAGES = 500;
+        const CONCURRENCY = 8;
+
+        for (let page = 1; page <= MAX_PAGES; page++) {
+            const pageUrl = `${baseUrl}?page=${page}`;
+
+            if (typeof progressCB === 'function') {
+                progressCB(`Resolving: ${pageUrl}`);
+            }
+
+            let dom, source;
+            try {
+                ({ dom, source } = await http.get(pageUrl));
+            } catch (e) {
+                break;
+            }
+
+            if (page === 1) {
+                firstDom = dom;
+                firstSource = source;
+
+                const h1 = dom?.querySelector?.('h1');
+                const title = (h1?.innerText || h1?.textContent || '').split('\n')[0]?.trim();
+                if (title) folderName = sanitizeName(title);
+            }
+
+            const slugs = extractSlugsFromDom(dom);
+            if (!slugs.length) break;
+
+            const fresh = [];
+            for (const s of slugs) {
+                if (!s || seen.has(s)) continue;
+                seen.add(s);
+                fresh.push(s);
+            }
+
+            if (!fresh.length) break;
+
+            const urls = await asyncPool(CONCURRENCY, fresh, async (slug) => {
+                const response = await http.post(
+                    vsEndpoint,
+                    JSON.stringify({ slug }),
+                    {},
+                    {
+                        'Content-Type': 'application/json',
+                        Referer: pageUrl,
+                        Origin: origin,
+                    }
+                );
+
+                const data = JSON.parse(response?.source || '{}');
+                return decodeFinalUrl(data);
+            });
+
+            for (const u of urls) if (u) resolved.push(u);
         }
-    ],
+
+        if (!folderName) folderName = h.basename(baseUrl);
+
+        return {
+            dom: firstDom,
+            source: firstSource,
+            folderName,
+            resolved,
+        };
+    }
+],
+
     [
         [/give.xxx\//],
         async (url, http) => {
@@ -2682,20 +2790,239 @@ const resolvers = [
 
         },
     ],
+
     [
-        [/redgifs.com(\/|\\\/)ifr/],
-        async (url, http) => {
-            const id = url.split('/').reverse()[0];
-            url = `https://api.redgifs.com/v2/gifs/${id}`;
-            const token = GM_getValue('redgifs_token', null);
-            const { source } = await http.get(url, {}, { Authorization: `Bearer ${token}` });
-            if (h.contains('urls', source)) {
-                const urls = JSON.parse(source).gif.urls;
-                if (urls.hd) {
-                    return urls.hd;
+        [/redgifs\.com\/users\//i],
+        async (url, http, passwords, postId, postSettings, progressCB) => {
+            const raw = String(url || '');
+            const m = raw.match(/redgifs\.com\/users\/([^\/?#]+)/i);
+            const username = m && m[1] ? decodeURIComponent(m[1]) : '';
+
+            if (!username) {
+                return null;
+            }
+
+            const baseUrl = `https://www.redgifs.com/users/${username}`;
+
+            const fetchTempToken = async () => {
+                try {
+                    const { source, status } = await http.get('https://api.redgifs.com/v2/auth/temporary', {}, {}, 'text');
+                    if (status === 200 && source && h.contains('token', source)) {
+                        const token = JSON.parse(source).token;
+                        if (token) {
+                            GM_setValue('redgifs_token', token);
+                        }
+                        return token || null;
+                    }
+                } catch (e) {}
+                return null;
+            };
+
+            let token = GM_getValue('redgifs_token', null);
+            if (!token) {
+                token = await fetchTempToken();
+            }
+            if (!token) {
+                return null;
+            }
+
+            const preferredKeys = ['hd', 'hd1080', 'hd720', 'sd', 'mp4'];
+            const resolved = [];
+
+            const MAX_PAGES = 5000;
+            const COUNT = 80;
+            const ORDER = 'new';
+
+            const fetchPage = async (page, t) => {
+                const apiUrl = `https://api.redgifs.com/v2/users/${encodeURIComponent(username)}/search?order=${ORDER}&page=${page}&count=${COUNT}`;
+                try {
+                    return await http.get(apiUrl, {}, { Authorization: `Bearer ${t}` }, 'text');
+                } catch (e) {
+                    return { source: null, status: 0 };
+                }
+            };
+
+            const tryFetchPage = async (page) => {
+                let attempt = 0;
+                let last = { source: null, status: 0 };
+
+                while (attempt < 3) {
+                    attempt++;
+
+                    last = await fetchPage(page, token);
+
+                    if (last.status === 429) {
+                        await new Promise(r => setTimeout(r, 800 * attempt));
+                        continue;
+                    }
+
+                    if (last.status === 401 || last.status === 403 || (last.source && /unauthorized|forbidden/i.test(last.source))) {
+                        token = await fetchTempToken();
+                        if (!token) {
+                            return last;
+                        }
+                        last = await fetchPage(page, token);
+                    }
+
+                    return last;
                 }
 
-                return urls.sd;
+                return last;
+            };
+
+            let pages = 1;
+
+            for (let page = 1; page <= pages && page <= MAX_PAGES; page++) {
+                if (typeof progressCB === 'function') {
+                    progressCB(`Resolving: ${baseUrl} (page ${page}/${pages})`);
+                }
+
+                const { source, status } = await tryFetchPage(page);
+
+                if (status !== 200 || !source) {
+                    break;
+                }
+
+                let j;
+                try {
+                    j = JSON.parse(source);
+                } catch (e) {
+                    break;
+                }
+
+                const gifs = Array.isArray(j?.gifs) ? j.gifs : (Array.isArray(j?.results) ? j.results : []);
+                pages = Number(j?.pages) || pages;
+
+                for (const g of gifs) {
+                    const urls = g?.urls || g?.gif?.urls;
+                    if (!urls) {
+                        continue;
+                    }
+
+                    let best = null;
+
+                    for (const k of preferredKeys) {
+                        const v = urls[k];
+                        if (typeof v === 'string' && /^https?:\/\//i.test(v)) {
+                            best = v;
+                            break;
+                        }
+                    }
+
+                    if (!best) {
+                        for (const v of Object.values(urls)) {
+                            if (typeof v === 'string' && /^https?:\/\//i.test(v) && /\.mp4(\?|$)/i.test(v)) {
+                                best = v;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (best) {
+                        resolved.push(best);
+                    }
+                }
+
+                if (!gifs.length) {
+                    break;
+                }
+
+                await new Promise(r => setTimeout(r, 75));
+            }
+
+            if (!resolved.length) {
+                return null;
+            }
+
+            return {
+                folderName: username,
+                resolved,
+            };
+        },
+    ],
+[
+        [/redgifs\.com(\/|\\\/)(ifr|watch|gifs\/detail|gifs\/watch)/i],
+        async (url, http) => {
+            const raw = String(url || '');
+            const idMatch =
+                  raw.match(/redgifs\.com(?:\/|\\\/)(?:ifr(?:\/|\\\/)|watch(?:\/|\\\/)|gifs(?:\/|\\\/)detail(?:\/|\\\/))?([a-z0-9_-]+)/i) ||
+                  raw.match(/\/([a-z0-9_-]+)(?:\?.*)?$/i);
+            const id = (idMatch && idMatch[1] ? String(idMatch[1]) : '').match(/[a-z0-9_-]+/i)?.[0];
+
+            if (!id) {
+                return null;
+            }
+
+            const fetchTempToken = async () => {
+                try {
+                    const { source, status } = await http.get('https://api.redgifs.com/v2/auth/temporary', {}, {}, 'text');
+                    if (status === 200 && source && h.contains('token', source)) {
+                        const token = JSON.parse(source).token;
+                        if (token) {
+                            GM_setValue('redgifs_token', token);
+                        }
+                        return token || null;
+                    }
+                } catch (e) {}
+                return null;
+            };
+
+            let token = GM_getValue('redgifs_token', null);
+            if (!token) {
+                token = await fetchTempToken();
+            }
+            if (!token) {
+                return null;
+            }
+
+            const apiUrl = `https://api.redgifs.com/v2/gifs/${id}`;
+
+            const fetchGif = async t => {
+                try {
+                    return await http.get(apiUrl, {}, { Authorization: `Bearer ${t}` }, 'text');
+                } catch (e) {
+                    return { source: null, status: 0 };
+                }
+            };
+
+            let { source, status } = await fetchGif(token);
+
+            if (status === 401 || status === 403 || (source && /unauthorized|forbidden/i.test(source))) {
+                token = await fetchTempToken();
+                if (!token) {
+                    return null;
+                }
+                ({ source, status } = await fetchGif(token));
+            }
+
+            if (status !== 200 || !source) {
+                return null;
+            }
+
+            let j;
+            try {
+                j = JSON.parse(source);
+            } catch (e) {
+                return null;
+            }
+
+            const urls = j?.gif?.urls || j?.urls;
+            if (!urls) {
+                return null;
+            }
+
+            const preferredKeys = ['hd', 'hd1080', 'hd720', 'sd', 'mp4'];
+            for (const k of preferredKeys) {
+                const v = urls[k];
+                if (typeof v === 'string' && /^https?:\/\//i.test(v)) {
+                    return v;
+                }
+            }
+
+            for (const v of Object.values(urls)) {
+                if (typeof v === 'string' && /\.mp4(\?|$)/i.test(v)) {
+                    return v;
+                }
             }
 
             return null;
@@ -2991,6 +3318,7 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
 
     let completed = 0;
     const zip = new JSZip();
+    let zipFileCount = 0;
 
     let resolved = [];
 
@@ -3061,7 +3389,14 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
                 let r = null;
 
                 try {
-                    r = await h.promise(resolve => resolve(resolverCB(resource, h.http, passwords, postId, postSettings)));
+                    const progressCB = (t) => {
+    try {
+        h.ui.setElProps(statusLabel, { color: '#469cf3', fontWeight: 'bold' });
+        h.ui.setText(statusLabel, t);
+    } catch (e) {}
+};
+
+r = await h.promise(resolve => resolve(resolverCB(resource, h.http, passwords, postId, postSettings, progressCB)));
                 } catch (e) {
                     log.post.error(postId, `::Error resolving::: ${resource}`, postNumber);
                     continue;
@@ -3124,6 +3459,38 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
     const filenames = [];
     const mimeTypes = [];
 
+    // Windows-safe sanitizers (used for folder/zip names). Kept local to downloadPost so it has access to settings.
+    const sanitizeWinSegment = (seg, fallback = 'file') => {
+        let s = String(seg ?? '').trim();
+
+        // Replace Windows-invalid chars and control chars.
+        const sub = (settings?.naming?.invalidCharSubstitute ?? '-');
+        s = s
+            .replace(/[\u0000-\u001f\u007f]/g, '')
+            .replace(/[<>:"/\\|?*]/g, sub)
+            .replace(/\s+/g, ' ')
+            .trim()
+            .replace(/[. ]+$/g, ''); // no trailing dots/spaces on Windows
+
+        if (!s) s = String(fallback || 'file');
+
+        // Avoid reserved device names on Windows.
+        if (/^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(s)) s = `_${s}`;
+
+        // Very long segments can cause path issues; keep it reasonable.
+        if (s.length > 180) s = s.slice(0, 180).trim();
+
+        return s;
+    };
+
+    const sanitizeWinPath = (p) => {
+        const parts = String(p ?? '')
+            .split('/')
+            .map(x => sanitizeWinSegment(x, ''))
+            .filter(Boolean);
+        return parts.join('/');
+    };
+
     const usedPaths = new Set();
 
     const ensureUniquePath = path => {
@@ -3149,6 +3516,33 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
             const candidate = dir ? `${dir}/${candidateBase}` : candidateBase;
             if (!usedPaths.has(candidate)) {
                 usedPaths.add(candidate);
+                return candidate;
+            }
+            i++;
+        }
+    };
+
+    const usedFlatNames = new Set();
+
+    const ensureUniqueFlatName = name => {
+        let n = String(name || '').trim();
+        if (!n) {
+            n = 'file';
+        }
+
+        if (!usedFlatNames.has(n)) {
+            usedFlatNames.add(n);
+            return n;
+        }
+
+        const ext = h.ext(n);
+        const stem = ext ? h.fnNoExt(n) : n;
+
+        let i = 2;
+        while (true) {
+            const candidate = ext ? `${stem} (${i}).${ext}` : `${stem} (${i})`;
+            if (!usedFlatNames.has(candidate)) {
+                usedFlatNames.add(candidate);
                 return candidate;
             }
             i++;
@@ -3246,7 +3640,126 @@ if (tmp.length) {
 
             const GOFILE_WARMUP_MS = 3000;
             const isGoFileUrl = u => /gofile\.io/i.test(String(u || ''));
+            const isPixeldrainUrl = u => /pixeldrain\.com/i.test(String(u || ''));
             const gofileWarmupAttempted = new Set();
+
+            const BLOB_MAX_BYTES = Math.floor(1.6 * 1024 * 1024 * 1024);
+            const preflightMetaCache = new Map();
+            // Windows-safe filenames for GM_download (Chrome is stricter than Firefox).
+            const WIN_ILLEGAL_RE = /[<>:"\/\\|?*\x00-\x1F]/g;
+
+            const sanitizeWinSegment = (s) => {
+                const sub = (settings && settings.naming && settings.naming.invalidCharSubstitute) ? settings.naming.invalidCharSubstitute : '_';
+                let out = String(s || '');
+                out = out.replace(WIN_ILLEGAL_RE, sub);
+                // Remove remaining control chars / oddities
+                out = out.replace(/[\x00-\x08\x0E-\x1F\x7F]/g, '');
+                // Windows also hates trailing dots/spaces in path segments
+                out = out.replace(/[\. ]+$/g, '').replace(/^[\. ]+/g, '');
+                if (!out) out = '_';
+                // Avoid reserved device names
+                if (/^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(out)) out = '_' + out;
+                return out;
+            };
+
+            const sanitizeWinPath = (p) => {
+                return String(p || '').split('/').map(sanitizeWinSegment).join('/');
+            };
+
+
+            const headerValue = (headers, name) => {
+                try {
+                    const re = new RegExp(`^${name}:\\s*([^\\r\\n]+)`, 'im');
+                    const m = re.exec(headers || '');
+                    return m && m[1] ? String(m[1]).trim() : '';
+                } catch (e) { return ''; }
+            };
+
+            const parseDispositionFilename = headers => {
+                const hRaw = headers || '';
+                // RFC 5987 filename*=UTF-8''...
+                let m = /filename\*\s*=\s*UTF-8''([^;\r\n]+)/i.exec(hRaw);
+                if (m && m[1]) {
+                    const raw = String(m[1]).trim().replace(/^"|"$/g, '');
+                    try { return decodeURIComponent(raw); } catch (e) { return raw; }
+                }
+                m = /filename\s*=\s*"([^"\r\n]+)"/i.exec(hRaw) || /filename\s*=\s*([^;\r\n]+)/i.exec(hRaw);
+                if (m && m[1]) return String(m[1]).trim().replace(/^"|"$/g, '');
+                return '';
+            };
+
+            const gmHead = (headUrl, reflink) => new Promise(resolve => {
+                try {
+                    GM_xmlhttpRequest({
+                        method: 'HEAD',
+                        url: headUrl,
+                                                onload: r => resolve({ ok: true, status: r.status, headers: r.responseHeaders || '' }),
+                        onerror: () => resolve({ ok: false, status: 0, headers: '' }),
+                        ontimeout: () => resolve({ ok: false, status: 0, headers: '' }),
+                    });
+                } catch (e) {
+                    resolve({ ok: false, status: 0, headers: '' });
+                }
+            });
+
+            const gmGetText = (getUrl, reflink) => new Promise(resolve => {
+                try {
+                    GM_xmlhttpRequest({
+                        method: 'GET',
+                        url: getUrl,
+                                                onload: r => resolve({ ok: true, status: r.status, text: r.responseText || '' }),
+                        onerror: () => resolve({ ok: false, status: 0, text: '' }),
+                        ontimeout: () => resolve({ ok: false, status: 0, text: '' }),
+                    });
+                } catch (e) {
+                    resolve({ ok: false, status: 0, text: '' });
+                }
+            });
+
+            const extractNum = v => {
+                const n = Number(v);
+                return Number.isFinite(n) ? n : 0;
+            };
+
+            const preflightMeta = async (dlUrl, reflink, isGoFile, isPixeldrain) => {
+                const key = `${dlUrl}`;
+                if (preflightMetaCache.has(key)) return preflightMetaCache.get(key);
+
+                const meta = { size: 0, filename: '', status: 0, contentType: '', headers: '' };
+
+                try {
+                    if (isPixeldrain) {
+                        const mFile = /pixeldrain\.com\/api\/file\/([^\/?#]+)/i.exec(dlUrl || '');
+                        if (mFile && mFile[1]) {
+                            const infoUrl = `https://pixeldrain.com/api/file/${mFile[1]}/info`;
+                            const r = await gmGetText(infoUrl, reflink);
+                            if (r.ok && r.text) {
+                                try {
+                                    const j = JSON.parse(r.text);
+                                    const v = j && (j.value || j.data || j);
+                                    meta.size = extractNum((v && (v.size ?? v.bytes ?? v.length)) ?? (j && (j.size ?? j.bytes)));
+                                    meta.filename = String((v && (v.name ?? v.filename ?? v.title)) ?? (j && (j.name ?? j.filename)) ?? '');
+                                } catch (e) {}
+                            }
+                        }
+                    }
+
+                    // Fallback HEAD (works for GoFile store links and Pixeldrain list ZIPs)
+                    const hRes = await gmHead(dlUrl, reflink);
+                    meta.status = hRes.status || 0;
+                    meta.headers = hRes.headers || '';
+                    meta.contentType = headerValue(meta.headers, 'content-type');
+                    const cl = headerValue(meta.headers, 'content-length');
+                    if (!meta.size && cl) meta.size = extractNum(cl);
+                    if (!meta.filename) {
+                        const cdName = parseDispositionFilename(meta.headers);
+                        if (cdName) meta.filename = cdName;
+                    }
+                } catch (e) {}
+
+                preflightMetaCache.set(key, meta);
+                return meta;
+            };
 
             const gofileWarmupOpenTab = warmUrl => {
                 try {
@@ -3259,9 +3772,10 @@ if (tmp.length) {
                 } catch (e) {}
             };
 
-            const startDownload = (resource, pass = 1) => {
+            const startDownload = async (resource, pass = 1) => {
                 const { url, host, original, folderName } = resource;
                 const isGoFile = isGoFileUrl(url);
+                const isPixeldrain = isPixeldrainUrl(url);
                 const progressKey = isGoFile ? `${url}@@gofilepass${pass}` : url;
 
                 h.ui.setElProps(statusLabel, { fontWeight: 'normal' });
@@ -3280,7 +3794,200 @@ if (tmp.length) {
                 const ellipsedUrl = h.limit(url, 80);
                 log.post.info(postId, `::Downloading${isGoFile && pass > 1 ? ' (retry)' : ''}::: ${url}`, postNumber);
 
-                const request = GM_xmlhttpRequest({
+
+                let switchedToDirect = false;
+
+                const startDirectDownload = async (metaHint = null) => {
+                    switchedToDirect = true;
+
+                    try {
+                        const baseMeta = (await preflightMeta(url, reflink, isGoFile, isPixeldrain)) || {};
+                        const meta = { ...baseMeta, ...(metaHint || {}) };
+                        const sizeBytes = Number(meta.size || 0) || 0;
+
+                        // GoFile: if HEAD already shows an HTML gate / bad status, do the same warm-up + one retry.
+                        if (isGoFile) {
+                            const ct = String(meta.contentType || '');
+                            const badStatus = meta.status && meta.status >= 400;
+                            const isHtml = /text\/html|application\/xhtml\+xml/i.test(ct);
+                            if ((badStatus || isHtml) && pass === 1 && !gofileWarmupAttempted.has(url)) {
+                                gofileWarmupAttempted.add(url);
+                                log.post.info(postId, `::GoFile warm-up -> open tab (${GOFILE_WARMUP_MS}ms) then retry [1/2]::: ${url}`, postNumber);
+                                gofileWarmupOpenTab(url);
+                                setTimeout(() => startDownload(resource, 2), GOFILE_WARMUP_MS);
+                                return;
+                            }
+                        }
+
+                        if (postSettings.zipped) {
+                            log.post.info(postId, `::Zipped ON but large file -> saving standalone (not in ZIP)::: ${url}`, postNumber);
+                        }
+
+                        // Try to reuse the existing GoFile filename hints, if available.
+                        let filename = filenames.find(f => f.url === url);
+                        if (!filename && isGoFile) {
+                            const mGf = String(url).match(/\/download\/(?:web|direct)\/([^\/?#]+)\//i);
+                            const gid = mGf && mGf[1] ? mGf[1] : null;
+                            if (gid) {
+                                filename = filenames.find(f => f && f.gofileId === gid);
+                                if (!filename) {
+                                    const hinted =
+                                        gofileNameById.get(String(gid)) ||
+                                        gofileNameByUrl.get(String(url));
+                                    if (hinted) {
+                                        filename = { url, name: String(hinted), gofileId: String(gid) };
+                                    }
+                                }
+                            }
+                        }
+
+                        let basename = '';
+
+                        if (isPixeldrain) {
+                            basename = String(meta.filename || '') || parseDispositionFilename(meta.headers || '') || '';
+                        } else if (isGoFile) {
+                            basename =
+                                (filename && filename.name ? String(filename.name) : '') ||
+                                String(meta.filename || '') ||
+                                parseDispositionFilename(meta.headers || '') ||
+                                '';
+                        }
+
+                        if (!basename) {
+                            basename = (filename && filename.name) ? String(filename.name) : '';
+                        }
+                        if (!basename) {
+                            basename = h.basename(url);
+                        }
+
+                        const originalName = basename;
+
+                        // Handle duplicates within this run.
+                        const same = filenames.filter(f => f && (f.original === basename || f.name === basename));
+                        if (same.length) {
+                            const ext2 = h.extension(basename);
+                            if (ext2) {
+                                basename = `${h.fnNoExt(basename)} (${same.length + 1}).${ext2}`;
+                            } else {
+                                basename = `${basename} (${same.length + 1})`;
+                            }
+                        }
+
+                        if (!filename) {
+                            const extra = {};
+                            if (isGoFile) {
+                                const mGf2 = String(url).match(/\/download\/(?:web|direct)\/([^\/?#]+)\//i);
+                                const gid2 = mGf2 && mGf2[1] ? mGf2[1] : null;
+                                if (gid2) extra.gofileId = String(gid2);
+                            }
+                            filenames.push({ url, name: basename, original: originalName, ...extra });
+                        }
+
+                        const folder = folderName || '';
+                        let fn = basename;
+
+                        if (!postSettings.flatten && folder && folder.trim() !== '') {
+                            fn = `${folder}/${basename}`;
+                        }
+
+                        log.separator(postId);
+                        log.post.info(postId, `::Completed (direct)::: ${url}`, postNumber);
+
+                        if (folder && folder.trim() !== '') {
+                            log.post.info(postId, `::Saving as (direct)::: ${basename} ::to:: ${folder}`, postNumber);
+                        } else {
+                            log.post.info(postId, `::Saving as (direct)::: ${basename}`, postNumber);
+                        }
+
+                        let title = sanitizeWinSegment(threadTitle);
+
+                        fn = sanitizeWinPath(fn);
+                        fn = ensureUniquePath(fn);
+                        basename = h.basename(fn);
+
+                        // Always keep standalone large downloads in the per-post folder.
+                        fn = `${postNumber}/${fn}`;
+
+                        const saveAsFF = `${title} #${postNumber} - ${ensureUniqueFlatName(fn.replace(/\//g, ' - '))}`;
+                        const saveAsPath = `${title}/${fn}`;
+                        const saveAsName = isFF ? saveAsFF : saveAsPath;
+
+                        h.ui.setElProps(statusLabel, { color: '#469cf3' });
+                        h.show(filePB);
+
+                        GM_download({
+                            url,
+                            name: saveAsName,
+                                                        onprogress: e => {
+                                const loadedMB = Number((e.loaded || 0) / 1024 / 1024).toFixed(2);
+                                const totalBytes = (e.total && e.total > 0) ? e.total : (sizeBytes || 0);
+                                const totalMB = totalBytes ? Number(totalBytes / 1024 / 1024).toFixed(2) : '??';
+                                if (!totalBytes) {
+                                    h.ui.setElProps(filePB, { width: '0%' });
+                                    h.ui.setText(statusLabel, `${completed} / ${totalDownloadable} 🢒 ${host.name} 🢒 DIRECT 🢒 ${loadedMB} MB 🢒 ${ellipsedUrl}`);
+                                } else {
+                                    h.ui.setText(statusLabel, `${completed} / ${totalDownloadable} 🢒 ${host.name} 🢒 DIRECT 🢒 ${loadedMB} MB / ${totalMB} MB  🢒 ${ellipsedUrl}`);
+                                    h.ui.setElProps(filePB, {
+                                        width: `${(e.loaded / totalBytes) * 100}%`,
+                                    });
+                                }
+                            },
+                            onload: () => {
+                                completed++;
+                                completedBatchedDownloads++;
+
+                                h.ui.setText(statusLabel, `${completed} / ${totalDownloadable} 🢒 ${ellipsedUrl}`);
+                                h.ui.setElProps(statusLabel, { color: '#2d9053' });
+                                h.ui.setElProps(totalPB, {
+                                    width: `${(completed / totalDownloadable) * 100}%`,
+                                });
+                            },
+                            onerror: err => {
+                                completed++;
+                                completedBatchedDownloads++;
+
+                                h.ui.setText(statusLabel, `${completed} / ${totalDownloadable} 🢒 ${ellipsedUrl}`);
+                                h.ui.setElProps(statusLabel, { color: '#b23b3b' });
+                                h.ui.setElProps(totalPB, {
+                                    width: `${(completed / totalDownloadable) * 100}%`,
+                                });
+
+                                log.post.error(postId, `::DIRECT download failed::: ${url}`, postNumber);
+                                console.log(err);
+                            },
+                            ontimeout: err => {
+                                completed++;
+                                completedBatchedDownloads++;
+                                log.post.error(postId, `::DIRECT download timed out::: ${url}`, postNumber);
+                                console.log(err);
+                            },
+                        });
+                    } catch (e) {
+                        // Safety: never hang the batch loop.
+                        completed++;
+                        completedBatchedDownloads++;
+                        log.post.error(postId, `::DIRECT download error::: ${url}`, postNumber);
+                        console.log(e);
+                    }
+                };
+
+
+                const isPixeldrainList = isPixeldrain && /pixeldrain\.com\/l\//i.test(String(original || ''));
+                if (isPixeldrainList) {
+                    log.post.info(postId, `::Pixeldrain list (/l/) -> DIRECT (skip blob)::: ${url}`, postNumber);
+                    startDirectDownload();
+                    return;
+                }
+
+if (isGoFile || isPixeldrain) {
+                    const meta0 = await preflightMeta(url, reflink, isGoFile, isPixeldrain);
+                    if (meta0 && meta0.size && meta0.size > BLOB_MAX_BYTES) {
+                        log.post.info(postId, `::Large file (${meta0.size} bytes > ~1.6GB) -> DIRECT (skip blob)::: ${url}`, postNumber);
+                        startDirectDownload(meta0);
+                        return;
+                    }
+                }
+const request = GM_xmlhttpRequest({
                     url,
                     headers: {
                         Referer: reflink,
@@ -3302,6 +4009,16 @@ if (tmp.length) {
                         h.ui.setElProps(statusLabel, {
                             color: '#469cf3',
                         });
+
+                        // Pixeldrain/GoFile: if size only becomes known mid-download and it's > ~1.6GB, switch to direct download.
+                        if (!switchedToDirect && (isGoFile || isPixeldrain) && response && response.total && response.total > BLOB_MAX_BYTES) {
+                            log.post.info(postId, `::Large file (${response.total} bytes > ~1.6GB) detected -> switch to DIRECT::: ${url}`, postNumber);
+                            switchedToDirect = true;
+                            try { request.abort(); } catch (e) {}
+                            startDirectDownload({ size: response.total });
+                            return;
+                        }
+
                         const downloadedSizeInMB = Number(response.loaded / 1024 / 1024).toFixed(2);
                         const totalSizeInMB = Number(response.total / 1024 / 1024).toFixed(2);
                         if (response.total === -1 || response.totalSize === -1) {
@@ -3470,44 +4187,60 @@ if (tmp.length) {
                             log.post.info(postId, `::Saving as::: ${basename}`, postNumber);
                         }
 
-                        let blob = URL.createObjectURL(response.response);
+                        const fileBlob = response.response;
 
-                        let title = threadTitle.replace(/[\\\/]/g, settings.naming.invalidCharSubstitute);
+                        let title = sanitizeWinSegment(threadTitle);
 
                         // https://stackoverflow.com/a/53681022
-                        fn = fn.replace(/[\x00-\x08\x0E-\x1F\x7F-\uFFFF]/g, '');
+                        fn = sanitizeWinPath(fn);
 
                         fn = ensureUniquePath(fn);
                         basename = h.basename(fn);
 
                         if (!isFF) {
+                            if (!postSettings.flatten && folder && folder.trim() !== '') {
+                                fn = `${folder}/${basename}`;
+                            }
+
+                            if (!postSettings.zipped) {
+                                fn = `${postNumber}/${fn}`;
+                            }
+                        } else {
                             fn = `${fn}`;
                         }
 
-                        const saveAs = `${title}/${fn}`;
+                        const saveAsFF = `${title} #${postNumber} - ${ensureUniqueFlatName(fn.replace(/\//g, ' - '))}`;
+                        const saveAsPath = `${title}/${fn}`;
 
-                        if (!isFF && !postSettings.zipped) {
+                        const saveAsName = (isFF && !postSettings.zipped) ? saveAsFF : saveAsPath;
+
+                        if (!postSettings.zipped) {
+                            const blobUrl = URL.createObjectURL(fileBlob);
                             GM_download({
-                                url: blob,
-                                name: saveAs,
+                                url: blobUrl,
+                                name: saveAsName,
                                 onload: () => {
-                                    URL.revokeObjectURL(blob);
-                                    blob = null;
+                                    try { URL.revokeObjectURL(blobUrl); } catch (e) {}
                                 },
                                 onerror: response => {
                                     console.log(`Error writing file ${fn} to disk. There may be more details below.`);
                                     console.log(response);
+                                    try { URL.revokeObjectURL(blobUrl); } catch (e) {}
                                 },
                             });
                         }
 
-                        if (isFF || postSettings.zipped) {
-                            zip.file(fn, response.response);
+                                                if (postSettings.zipped) {
+                            zip.file(fn, fileBlob);
+                            zipFileCount++;
                         }
+
                     },
                     onerror: () => {
                         const p = requestProgress.find(r => r.url === progressKey);
                         if (p) clearInterval(p.intervalId);
+
+                        if (switchedToDirect) return;
 
                         if (isGoFile && pass === 1 && !gofileWarmupAttempted.has(url)) {
                             gofileWarmupAttempted.add(url);
@@ -3580,83 +4313,117 @@ if (tmp.length) {
     h.hide(filePB);
     h.hide(totalPB);
 
-    if (!isFF) {
-        setProcessing(false, postId);
-    }
-
     if (totalDownloadable > 0) {
-        let title = threadTitle.replace(/[\\\/]/g, settings.naming.invalidCharSubstitute);
-        const filename = customFilename || `${title} #${postNumber}.zip`;
+        let title = sanitizeWinSegment(threadTitle);
 
-        log.separator(postId);
-        log.post.info(postId, `::Preparing zip::`, postNumber);
+        const mainZipName = customFilename || `${title} #${postNumber}.zip`;
+        const generatedZipName = `${title} #${postNumber} generated.zip`;
 
-        if (postSettings.generateLog) {
-            log.post.info(postId, `::Generating log file::`, postNumber);
-            zip.file(
-                isFF ? 'generated/log.txt' : 'log.txt',
-                logs
-                .filter(l => l.postId === postId)
-                .map(l => l.message)
-                .join('\n'),
-            );
-        }
 
-        if (postSettings.generateLinks) {
-            log.post.info(postId, `::Generating links::`, postNumber);
-            zip.file(
-                isFF ? 'generated/links.txt' : 'links.txt',
-                resolved
-                .filter(r => r.url)
-                .map(r => r.url)
-                .join('\n'),
-            );
-        }
+        // Original (single ZIP) behavior.
+        const needZipBlob = (postSettings.generateLog || postSettings.generateLinks || (postSettings.zipped && zipFileCount > 0));
 
-        let blob = await zip.generateAsync({ type: 'blob' });
 
-        if (isFF) {
-            saveAs(blob, filename);
-            setProcessing(false, postId);
-        }
+                // If "Zipped" is enabled but nothing was added to the ZIP (e.g. everything was saved via DIRECT),
+                // skip creating an empty ZIP file.
+                if (postSettings.zipped && zipFileCount === 0 && !postSettings.generateLog && !postSettings.generateLinks) {
+                    log.post.info(postId, `::Zipped ON but nothing to zip (all DIRECT downloads) -> skipping ZIP::`, postNumber);
+                }
+if (needZipBlob) {
+            log.separator(postId);
+            log.post.info(postId, postSettings.zipped ? `::Preparing zip::` : `::Preparing generated.zip::`, postNumber);
 
-        if (!isFF && postSettings.zipped) {
-            GM_download({
-                url: URL.createObjectURL(blob),
-                name: `${title}/#${postNumber}.zip`,
-                onload: () => {
-                    blob = null;
-                },
-                onerror: response => {
-                    console.log(`Error writing file to disk. There may be more details below.`);
-                    console.log(response);
-                    console.log('Trying to write using JSZip...');
-                    saveAs(blob, filename);
-                    setProcessing(false, postId);
-                    console.log('Done!');
-                },
-            });
-        }
+            if (postSettings.generateLog) {
+                log.post.info(postId, `::Generating log file::`, postNumber);
+                zip.file(
+                    isFF ? 'generated/log.txt' : 'log.txt',
+                    logs
+                        .filter(l => l.postId === postId)
+                        .map(l => l.message)
+                        .join('\n'),
+                );
+            }
 
-        if (!isFF && !postSettings.zipped) {
-            if (postSettings.generateLog || postSettings.generateLinks) {
-                let url = URL.createObjectURL(blob);
-                GM_download({
-                    url,
-                    name: `${title}/#${postNumber}/generated.zip`,
-                    onload: () => {
-                        blob = null;
-                    },
-                    onerror: response => {
-                        console.log(`Error writing file ${fn} to disk. There may be more details below.`);
-                        console.log(response);
-                    },
-                });
+            if (postSettings.generateLinks) {
+                log.post.info(postId, `::Generating links::`, postNumber);
+                zip.file(
+                    isFF ? 'generated/links.txt' : 'links.txt',
+                    resolved
+                        .filter(r => r.url)
+                        .map(r => r.url)
+                        .join('\n'),
+                );
+            }
+
+            let blob = null;
+            try {
+                blob = await zip.generateAsync({ type: 'blob' });
+            } catch (e) {
+                console.log('JSZip failed to construct the Blob. For very large albums, try unzipped mode.');
+                console.log(e);
+                blob = null;
+            }
+
+            if (blob) {
+                if (postSettings.zipped) {
+                    if (isFF) {
+                        saveAs(blob, mainZipName);
+                    } else {
+                        await new Promise(resolve => {
+                            const url = URL.createObjectURL(blob);
+                            GM_download({
+                                url,
+                                name: `${title}/#${postNumber}.zip`,
+                                onload: () => {
+                                    try { URL.revokeObjectURL(url); } catch (e) {}
+                                    blob = null;
+                                    resolve();
+                                },
+                                onerror: response => {
+                                    try { URL.revokeObjectURL(url); } catch (e) {}
+                                    console.log(`Error writing file to disk. There may be more details below.`);
+                                    console.log(response);
+                                    console.log('Trying to write using FileSaver...');
+                                    try { saveAs(blob, mainZipName); } catch (e) {}
+                                    console.log('Done!');
+                                    resolve();
+                                },
+                            });
+                        });
+                    }
+                } else {
+                    if (postSettings.generateLog || postSettings.generateLinks) {
+                        if (isFF) {
+                            saveAs(blob, generatedZipName);
+                        } else {
+                            await new Promise(resolve => {
+                                const url = URL.createObjectURL(blob);
+                                GM_download({
+                                    url,
+                                    name: `${title}/#${postNumber}/generated.zip`,
+                                    onload: () => {
+                                        try { URL.revokeObjectURL(url); } catch (e) {}
+                                        blob = null;
+                                        resolve();
+                                    },
+                                    onerror: response => {
+                                        try { URL.revokeObjectURL(url); } catch (e) {}
+                                        console.log(`Error writing generated.zip to disk. There may be more details below.`);
+                                        console.log(response);
+                                        blob = null;
+                                        resolve();
+                                    },
+                                });
+                            });
+                        }
+                    }
+                }
             }
         }
-    } else {
-        setProcessing(false, postId);
+
     }
+
+    setProcessing(false, postId);
 
     if (totalDownloadable > 0) {
         // For logging in console since post logs are already written.
@@ -3788,7 +4555,8 @@ const selectedPosts = [];
 
 
         try {
-            const { source } = await h.http.get('https://api.redgifs.com/v2/auth/temporary');
+            const { source, status } = await h.http.get('https://api.redgifs.com/v2/auth/temporary', {}, {}, 'text');
+            if (status !== 200) { throw new Error(`HTTP ${status}`); }
             if (h.contains('token', source)) {
                 const token = JSON.parse(source).token;
                 GM_setValue('redgifs_token', token);
@@ -3808,8 +4576,7 @@ const selectedPosts = [];
                 generateLog: false,
                 skipDuplicates: false,
                 skipDownload: false,
-                verifyBunkrLinks: false,
-                output: [],
+                verifyBunkrLinks: false,                output: [],
             };
 
             const parsedPost = parsers.thread.parsePost(post);
