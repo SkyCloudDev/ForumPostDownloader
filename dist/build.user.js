@@ -9,12 +9,7 @@
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.host.church/simpcityIcon192.png
 // @license WTFPL; http://www.wtfpl.net/txt/copying/
-// @match https://simpcity.cr/threads/*
-// @match https://simpcity.is/threads/*
-// @match https://simpcity.cz/threads/*
-// @match https://simpcity.hk/threads/*
-// @match https://simpcity.rs/threads/*
-// @match https://simpcity.ax/threads/*
+// @match https://shesgotleaks.com/threads/*
 // @require https://unpkg.com/@popperjs/core@2
 // @require https://unpkg.com/tippy.js@6
 // @require https://unpkg.com/file-saver@2.0.4/dist/FileSaver.min.js
@@ -681,7 +676,7 @@ const parsers = {
             });
 
             // Remove thread links.
-            [...messageContentClone.querySelectorAll('.contentRow-header > a[href^="https://simpcity.su/threads"]')]
+            [...messageContentClone.querySelectorAll('.contentRow-header > a[href^="https://shesgotleaks.com/threads"]')]
                 .map(a => a.parentNode.parentNode.parentNode.parentNode)
                 .forEach(i => i.remove());
 
@@ -1438,7 +1433,7 @@ let processing = [];
  *
  */
 const hosts = [
-    ['Simpcity:Attachments', [/(\/attachments\/|\/data\/video\/)/]],
+    ['Shesgotleaks:Attachments', [/(\/attachments\/|\/data\/video\/)/]],
     ['Coomer:Profiles', [/coomer.st\/[~an@._-]+\/user/]],
     ['Coomer:image', [/(\w+\.)?coomer.st\/(data|thumbnail)/]],
     ['JPGX:image', [/(simp\d+\.)?(selti-delivery\.ru|jpg\d?\.(church|fish|fishing|pet|su|cr))\/(?!(img\/|a\/|album\/))/, /jpe?g\d\.(church|fish|fishing|pet|su|cr)(\/a\/|\/album\/)[~an@-_.]+<no_qs>/]],
@@ -3195,7 +3190,7 @@ const resolvers = [
     [
         [/(\/attachments\/|\/data\/video\/)/],
         async (url) => {
-            url = url.replace('/attachments/', 'https://simpcity.su/attachments/').replace('/data/video/', 'https://simpcity.su/data/video/')
+            url = url.replace('/attachments/', 'https://shesgotleaks.com/attachments/').replace('/data/video/', 'https://shesgotleaks.com/data/video/')
             return url;
         },
     ],
@@ -4108,7 +4103,7 @@ const request = GM_xmlhttpRequest({
 
                         if (url.includes('pixeldrain.com')) {
                             basename = response.responseHeaders.match(/^content-disposition.+filename=(.+)$/im)[1].replace(/"/g, '');
-                        } else if (url.includes('https://simpcity.su/attachments/')) {
+                        } else if (url.includes('https://shesgotleaks.com/attachments/')) {
                             basename = filename ? filename.name : h.basename(url).replace(/(.*)-(.{3,4})\.\d*$/i, '$1.$2');
                         } else if (url.includes('kemono.cr')) {
                             basename = filename
