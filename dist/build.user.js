@@ -4,7 +4,7 @@
 // @namespace https://github.com/SkyCloudDev
 // @author SkyCloudDev
 // @description Downloads images and videos from posts
-// @version 3.16
+// @version 3.17
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.host.church/simpcityIcon192.png
@@ -27,20 +27,8 @@
 // @connect boxcloud.com
 // @connect kemono.cr
 // @connect github.com
-// @connect big-taco-1img.bunkr.ru
-// @connect i-pizza.bunkr.ru
 // @connect scdn.st
-// @connect *.scdn.st
 // @connect cache8.st
-// @connect *.cache8.st
-// @connect *.bunkr.ru
-// @connect *.bunkr-cache.se
-// @connect gigachad-cdn.ru
-// @connect *.gigachad-cdn.ru
-// @connect *.cdn.gigachad-cdn.ru
-// @connect cake.bunkr.ru
-// @connect b-cdn.net
-// @connect *.b-cdn.net
 // @connect bunkr.ac
 // @connect bunkr.ax
 // @connect bunkr.black
@@ -65,7 +53,8 @@
 // @connect bunkrr.su
 // @connect bunkrrr.org
 // @connect bunkr-cache.se
-// @connect mlk-bk.cdn.gigachad-cdn.ru
+// @connect b-cdn.net
+// @connect gigachad-cdn.ru
 // @connect cyberdrop.me
 // @connect cyberdrop.cc
 // @connect cyberdrop.ch
@@ -73,21 +62,10 @@
 // @connect cyberdrop.nl
 // @connect cyberdrop.to
 // @connect cyberdrop.cr
-// @connect api.cyberdrop.cr
-// @connect api.cyberdrop.me
-// @connect api.cyberdrop.to
-// @connect api.cyberdrop.nl
-// @connect api.cyberdrop.cc
-// @connect api.cyberdrop.ch
-// @connect api.cyberdrop.cloud
 // @connect cyberfile.su
 // @connect cyberfile.me
 // @connect turbo.cr
 // @connect turbocdn.st
-// @connect dl1.turbocdn.st
-// @connect dl2.turbocdn.st
-// @connect dl3.turbocdn.st
-// @connect dl4.turbocdn.st
 // @connect saint2.su
 // @connect saint2.cr
 // @connect redd.it
@@ -114,26 +92,25 @@
 // @connect postimg.cc
 // @connect imgvb.com
 // @connect pixxxels.cc
-// @connect postimg.cc
 // @connect imagevenue.com
 // @connect nhentai-proxy.herokuapp.com
 // @connect pbs.twimg.com
 // @connect media.tumblr.com
 // @connect pixeldrain.com
+// @connect pixeldrain.net
+// @connect pixeldra.in
 // @connect redgifs.com
-// @connect api.redgifs.com
-// @connect *.redgifs.com
 // @connect rule34.xxx
 // @connect noodlemagazine.com
 // @connect pvvstream.pro
 // @connect spankbang.com
 // @connect sb-cd.com
 // @connect gofile.io
-// @connect api.gofile.io
 // @connect phncdn.com
 // @connect xvideos.com
 // @connect give.xxx
 // @connect githubusercontent.com
+// @connect filester.me
 // @run-at document-start
 // @grant GM_xmlhttpRequest
 // @grant GM_download
@@ -143,6 +120,26 @@
 // @grant GM_openInTab
 
 // ==/UserScript==
+// --- tab handle helper (Tampermonkey can return either a Tab object or a Promise<Tab>) ---
+function xfpdCloseTabHandle(tabOrPromise) {
+    try {
+        if (!tabOrPromise) return;
+        // Promise-like (e.g., some GM implementations return Promise<Tab>)
+        if (typeof tabOrPromise.then === 'function') {
+            try {
+                tabOrPromise.then(t => {
+                    try { if (t && typeof t.close === 'function') t.close(); } catch (e) {}
+                }).catch(() => {});
+            } catch (e) {}
+            return;
+        }
+        // Direct tab handle
+        if (typeof tabOrPromise.close === 'function') {
+            try { tabOrPromise.close(); } catch (e) {}
+        }
+    } catch (e) {}
+}
+// ---------------------------------------------------------------------------
 const JSZip = window.JSZip;
 const tippy = window.tippy;
 const http = window.GM_xmlhttpRequest;
@@ -277,6 +274,333 @@ const gofileNameByUrl = new Map();
 // Cyberdrop filename hints (from API)
 const cyberdropNameBySlug = new Map();
 const cyberdropNameByUrl = new Map();
+
+// Filester filename/size hints (from API)
+const filesterNameBySlug = new Map();
+const filesterNameByUrl = new Map();
+const filesterSizeBySlug = new Map();
+const filesterSizeByUrl = new Map();
+const filesterSlugByUrl = new Map();
+const filesterRefByUrl = new Map();
+
+// Filester: cache candidate fallback (some tokens are served from different cacheN hosts; cache6 is common but not guaranteed)
+const filesterCandidatesByToken = new Map(); // token -> string[]
+const filesterTriedByToken = new Map();      // token -> Set<string> of tried candidate URLs
+const filester429AttemptsByKey = new Map(); // token/url -> number of 429 retries (rate limiting)
+const filesterRetryAttemptsByKey = new Map(); // token/url -> number of retries on transient HTTP errors (429/400/etc)
+
+
+function filesterTokenFromVUrl(u) {
+    try {
+        const m = /\/v\/([^\/?#]+)/i.exec(String(u || ''));
+        return m && m[1] ? String(m[1]) : '';
+    } catch (e) { return ''; }
+}
+
+function filesterBuildCandidates(token) {
+    const t = String(token || '').trim();
+    if (!t) return [];
+    const order = [6, 1, 2, 3, 4, 5, 7, 8];
+    const out = [];
+    for (const n of order) out.push(`https://cache${n}.filester.me/v/${t}`);
+    out.push(`https://filester.me/v/${t}`);
+    return out;
+}
+
+// Bunkr filename hints (from /v/ pages)
+const bunkrNameByUrl = new Map();
+
+
+// Bunkr/Cloudflare: best-effort warm-up to let the browser complete a JS-only CF interstitial ("Just a moment...").
+// NOTE: This does NOT solve interactive Turnstile/CAPTCHA challenges; in that case you still need to do it manually.
+const BUNKR_CF_WARMUP_MS = 6000;
+const BUNKR_CF_MAX_RETRIES = 3;
+const BUNKR_CF_WARMUP_ACTIVE_TAB = false;
+
+const BUNKR_CF_WARMUP_COOLDOWN_MS = 15000; // reduce repeated warm-up tabs
+
+
+// Bunkr fast-fail + domain blacklist:
+// - On first 403 or obvious CF interstitial on a non-last domain, immediately switch to next domain (no extra retries).
+// - Blacklist the failing domain for a while so subsequent links skip it entirely.
+const BUNKR_FASTFAIL_ON_403 = true;
+const BUNKR_DOMAIN_BLACKLIST_MS = 60 * 60 * 1000; // 60 minutes
+const xfpdBunkrDomainBanUntil = new Map(); // baseOrigin -> timestamp
+
+function xfpdBunkrNormalizeBase(baseOrUrl) {
+    try {
+        const u = new URL(String(baseOrUrl || ''));
+        return u.origin;
+    } catch (e) {
+        return String(baseOrUrl || '').replace(/\/+$/, '');
+    }
+}
+
+function xfpdBunkrIsBaseBanned(baseOrUrl) {
+    try {
+        const base = xfpdBunkrNormalizeBase(baseOrUrl);
+        const until = xfpdBunkrDomainBanUntil.get(base);
+        if (!until) return false;
+        if (Date.now() >= until) {
+            xfpdBunkrDomainBanUntil.delete(base);
+            return false;
+        }
+        return true;
+    } catch (e) {
+        return false;
+    }
+}
+
+function xfpdBunkrBanBase(baseOrUrl) {
+    try {
+        const base = xfpdBunkrNormalizeBase(baseOrUrl);
+        // Don't blacklist the last-resort domain (it may be the only thing left).
+        if (base === 'https://bunkr.cr') return;
+        xfpdBunkrDomainBanUntil.set(base, Date.now() + BUNKR_DOMAIN_BLACKLIST_MS);
+    } catch (e) {}
+}
+
+function xfpdBunkrFilterBases(bases) {
+    const uniq = [];
+    const seen = new Set();
+    for (const b of (bases || [])) {
+        const base = xfpdBunkrNormalizeBase(b);
+        if (!base || seen.has(base)) continue;
+        seen.add(base);
+        uniq.push(base);
+    }
+    const filtered = uniq.filter(b => b === 'https://bunkr.cr' || !xfpdBunkrIsBaseBanned(b));
+    // Never return an empty list; keep last-resort behavior intact.
+    return filtered.length ? filtered : uniq;
+}
+
+function xfpdLooksLikeCfChallenge(source, dom) {
+    try {
+        const s = String(source || '');
+        const head = s.slice(0, 8000).toLowerCase();
+
+        const title =
+            String(dom?.querySelector?.('title')?.textContent || '').trim();
+
+        if (title && /just a moment|attention required|checking your browser/i.test(title)) return true;
+        if (title && /cloudflare/i.test(title)) return true;
+
+        if (head.includes('cdn-cgi/challenge-platform')) return true;
+        if (head.includes('challenges.cloudflare.com')) return true;
+        if (head.includes('cf-browser-verification')) return true;
+        if (head.includes('checking your browser')) return true;
+        if (head.includes('just a moment')) return true;
+        if (head.includes('attention required')) return true;
+
+        // DOM markers (when we have it)
+        if (dom?.querySelector?.('#cf-challenge-running, #challenge-form, .cf-browser-verification, .cf-challenge')) return true;
+    } catch (e) {}
+    return false;
+}
+
+function xfpdLooksLikeCfFilenameHint(name) {
+    const n = String(name || '').trim();
+    return /^(?:just a moment\.{0,3}|checking your browser\.{0,3}|attention required\.{0,3})$/i.test(n) || /cloudflare/i.test(n);
+}
+
+
+// Try to extract the original filename from Bunkr /api/vs JSON (when /v/ is blocked by CF/403).
+function xfpdBunkrExtractNameFromVsData(data) {
+    try {
+        const cands = [];
+        const add = (v) => {
+            if (!v) return;
+            if (typeof v === 'string') cands.push(v);
+            else if (typeof v === 'number') cands.push(String(v));
+        };
+
+        add(data?.name);
+        add(data?.filename);
+        add(data?.file_name);
+        add(data?.original);
+        add(data?.title);
+
+        // common nesting patterns
+        if (data?.data && typeof data.data === 'object') {
+            add(data.data.name);
+            add(data.data.filename);
+            add(data.data.file_name);
+            add(data.data.original);
+            add(data.data.title);
+        }
+        if (data?.file && typeof data.file === 'object') {
+            add(data.file.name);
+            add(data.file.filename);
+            add(data.file.original);
+            add(data.file.title);
+        }
+
+        const norm = (s) => {
+            let t = String(s || '').replace(/\s+/g, ' ').trim();
+            t = t.replace(/\s*\|\s*Bunkr\s*$/i, '').trim();
+            return t;
+        };
+
+        // Prefer candidates that look like a real filename with an extension.
+        for (const raw of cands) {
+            const t = norm(raw);
+            if (!t) continue;
+            if (xfpdLooksLikeCfFilenameHint(t)) continue;
+            if (/\.[A-Za-z0-9]{1,8}$/.test(t)) return t;
+        }
+        // Otherwise, return the first non-empty non-CF string.
+        for (const raw of cands) {
+            const t = norm(raw);
+            if (!t) continue;
+            if (xfpdLooksLikeCfFilenameHint(t)) continue;
+            return t;
+        }
+    } catch (e) {}
+    return '';
+}
+
+
+async function xfpdWarmupTab(url, ms = BUNKR_CF_WARMUP_MS, active = BUNKR_CF_WARMUP_ACTIVE_TAB) {
+    try {
+        const tab = GM_openInTab(url, { active: !!active, insert: true, setParent: true });
+        await h.delayedResolve(ms);
+        try { tab?.close?.(); } catch (e) {}
+    } catch (e) {
+        // Ignore - warm-up is best-effort
+        try { await h.delayedResolve(ms); } catch (e2) {}
+    }
+}
+
+let xfpdBunkrCfWarmupPromise = null;
+let xfpdBunkrCfWarmupLastAt = 0;
+
+// Ensure we open at most ONE warm-up tab at a time (and no more than once per cooldown window).
+async function xfpdBunkrCfWarmup(url) {
+    try {
+        const now = Date.now();
+
+        // If a warm-up is already running, just wait for it.
+        if (xfpdBunkrCfWarmupPromise) {
+            return await xfpdBunkrCfWarmupPromise;
+        }
+
+        // If we recently warmed up, don't open another tab; just wait a bit to avoid hammering.
+        if (now - xfpdBunkrCfWarmupLastAt < BUNKR_CF_WARMUP_COOLDOWN_MS) {
+            try { await h.delayedResolve(Math.min(1000, BUNKR_CF_WARMUP_MS)); } catch (e) {}
+            return null;
+        }
+
+        xfpdBunkrCfWarmupLastAt = now;
+
+        xfpdBunkrCfWarmupPromise = (async () => {
+            await xfpdWarmupTab(url);
+        })();
+
+        try {
+            return await xfpdBunkrCfWarmupPromise;
+        } finally {
+            xfpdBunkrCfWarmupPromise = null;
+        }
+    } catch (e) {
+        // Best-effort
+        return null;
+    }
+}
+
+async function xfpdBunkrGetWithCfRetry(http, url, warmUrlOrOrigin, allowWarmup = true) {
+    let last = null;
+    for (let attempt = 0; attempt <= BUNKR_CF_MAX_RETRIES; attempt++) {
+        try {
+            last = await http.get(url);
+        } catch (e) {
+            last = null;
+        }
+
+        const dom = last?.dom;
+        const source = last?.source || '';
+
+
+// Fast-fail on 403 / CF interstitial for non-last domains:
+// Immediately blacklist this domain and return, so the caller can try the next domain.
+const status = Number(last?.status || 0);
+if (BUNKR_FASTFAIL_ON_403 && (status === 403) && !allowWarmup) {
+    xfpdBunkrBanBase(warmUrlOrOrigin || url);
+    return last || { dom: null, source: '' };
+}
+if (BUNKR_FASTFAIL_ON_403 && !allowWarmup && last && xfpdLooksLikeCfChallenge(source, dom)) {
+    xfpdBunkrBanBase(warmUrlOrOrigin || url);
+    return last || { dom: null, source: '' };
+}
+
+        if (last && !xfpdLooksLikeCfChallenge(source, dom)) return last;
+
+        if (attempt < BUNKR_CF_MAX_RETRIES) {
+            if (allowWarmup) {
+                await xfpdBunkrCfWarmup(String(warmUrlOrOrigin || url));
+            } else {
+                try { await h.delayedResolve(200); } catch (e) {}
+            }
+}
+    }
+    return last || { dom: null, source: '' };
+}
+
+async function xfpdBunkrPostVsWithCfRetry(http, endpoint, slug, refererUrl, originUrl, allowWarmup = true) {
+    let lastText = '';
+    let lastStatus = 0;
+    for (let attempt = 0; attempt <= BUNKR_CF_MAX_RETRIES; attempt++) {
+        try {
+            const response = await http.post(
+                endpoint,
+                JSON.stringify({ slug }),
+                {},
+                {
+                    'Content-Type': 'application/json',
+                    Referer: refererUrl,
+                    Origin: originUrl,
+                },
+            );
+            lastText = String(response?.source || '');
+            lastStatus = Number(response?.status || 0);
+        } catch (e) {
+            lastText = '';
+            lastStatus = 0;
+        }
+
+
+
+// Fast-fail on 403 / CF interstitial for non-last domains:
+// Immediately blacklist this domain and return null so the caller tries the next domain.
+if (BUNKR_FASTFAIL_ON_403 && (Number(lastStatus || 0) === 403) && !allowWarmup) {
+    xfpdBunkrBanBase(originUrl || refererUrl || endpoint);
+    return null;
+}
+if (BUNKR_FASTFAIL_ON_403 && !allowWarmup && xfpdLooksLikeCfChallenge(lastText, null)) {
+    xfpdBunkrBanBase(originUrl || refererUrl || endpoint);
+    return null;
+}
+try {
+            return JSON.parse(lastText || '{}');
+        } catch (e) {
+            if (xfpdLooksLikeCfChallenge(lastText, null) && attempt < BUNKR_CF_MAX_RETRIES) {
+                if (allowWarmup) {
+                    await xfpdBunkrCfWarmup(String(refererUrl || originUrl || endpoint));
+                } else {
+                    try { await h.delayedResolve(200); } catch (e2) {}
+                }
+continue;
+            }
+            return null;
+        }
+    }
+    return null;
+}
+
+
+
+
+
+
 
 // Turbo mapping: signed turbocdn URL -> Turbo id (needed for re-sign when resolving from /a/ albums)
 const turboIdBySignedUrl = new Map();
@@ -512,25 +836,33 @@ const h = {
             return h.promise((resolve, reject) => {
                 let responseHeaders = null;
                 let request = null;
+                // Allow passing non-header request options via a special key in the headers object.
+                // This keeps the original function signature intact.
+                const hdrs = {
+                    Referer: url,
+                    ...(headers || {}),
+                };
+                const withCredentials = !!(hdrs && Object.prototype.hasOwnProperty.call(hdrs, '__xfpd_withCredentials') && hdrs.__xfpd_withCredentials);
+                try { if (hdrs && Object.prototype.hasOwnProperty.call(hdrs, '__xfpd_withCredentials')) delete hdrs.__xfpd_withCredentials; } catch (e) {}
+
                 request = http({
                     url,
                     method,
                     responseType,
                     data,
-                    headers: {
-                        Referer: url,
-                        ...headers,
-                    },
+                    headers: hdrs,
+                    ...(withCredentials ? { withCredentials: true, anonymous: false } : {}),
                     onreadystatechange: response => {
                         if (response.readyState === 2) {
                             responseHeaders = response.responseHeaders;
+                            const finalUrl = response.finalUrl || response.responseURL || '';
 
                             if (callbacks && callbacks.onResponseHeadersReceieved) {
                                 callbacks.onResponseHeadersReceieved({ request, response, status: response.status, responseHeaders });
 
                                 if (request) {
                                     request.abort();
-                                    resolve({ request, response, status: response.status, responseHeaders });
+                                    resolve({ request, response, status: response.status, responseHeaders, finalUrl });
                                 }
                             }
                         }
@@ -543,8 +875,9 @@ const h = {
                     onload: response => {
                         const { responseText, status } = response;
                         const dom = response?.response;
+                        const finalUrl = response.finalUrl || response.responseURL || '';
                         callbacks && callbacks.onLoad && callbacks.onLoad(response);
-                        resolve({ source: responseText, request, status, dom, responseHeaders });
+                        resolve({ source: responseText, request, status, dom, responseHeaders, finalUrl });
                     },
                     onerror: error => {
                         callbacks && callbacks.onError && callbacks.onError(error);
@@ -705,6 +1038,148 @@ const parsers = {
             // For parsing only, remove the preview <img> inside attachment links so we don't count/download it twice.
             try {
                 messageContentClone.querySelectorAll('a[href*="/attachments/"] img').forEach((img) => img.remove());
+            } catch (e) { /* ignore */ }
+
+
+            // Decode forum outbound link protection (e.g. /redirect/?to=...&m=b64) for parsing only.
+            // Some forums wrap external URLs in a redirect/proxy URL and store the real target in query params
+            // (often base64). If we don't decode it, host detection won't see the original domain.
+            try {
+                const __decodeB64Url = (s) => {
+                    if (!s) return null;
+                    let b = String(s).trim().replace(/-/g, '+').replace(/_/g, '/');
+                    while (b.length % 4) b += '=';
+                    try { return atob(b); } catch (e) { return null; }
+                };
+
+                const __decodeForumRedirect = (href) => {
+                    if (!href) return null;
+                    try {
+                        const u = new URL(href, location.origin);
+                        const p = (u.pathname || '').toLowerCase();
+
+                        const looksRedirect = p === '/redirect' || p === '/redirect/' || p.startsWith('/redirect/');
+                        const looksLinkProxy = p.includes('link-proxy');
+                        if (!looksRedirect && !looksLinkProxy) return null;
+
+                        const to = u.searchParams.get('to')
+                                 || u.searchParams.get('url')
+                                 || u.searchParams.get('u')
+                                 || u.searchParams.get('link')
+                                 || u.searchParams.get('target');
+                        if (!to) return null;
+
+                        const mode = (u.searchParams.get('m') || '').toLowerCase();
+                        let decoded = null;
+
+                        if (mode === 'b64' || mode === 'base64') {
+                            decoded = __decodeB64Url(to);
+                        }
+
+                        // Some installs omit the mode flag even though `to` is base64.
+                        if (!decoded) {
+                            const looksB64 = /^[A-Za-z0-9+/_-]+={0,2}$/.test(to) && to.length >= 16 && (to.length % 4 !== 1);
+                            if (looksB64) decoded = __decodeB64Url(to);
+                        }
+
+                        if (!decoded) {
+                            try { decoded = decodeURIComponent(to); } catch (e) { decoded = to; }
+                        }
+
+                        decoded = String(decoded || '').trim();
+
+                        // Some protectors double-encode.
+                        if (decoded && !/^https?:\/\//i.test(decoded) && /%3a%2f%2f/i.test(decoded)) {
+                            try {
+                                const d2 = decodeURIComponent(decoded);
+                                if (/^https?:\/\//i.test(d2)) decoded = d2;
+                            } catch (e) { /* ignore */ }
+                        }
+
+                        if (!/^https?:\/\//i.test(decoded)) return null;
+                        return decoded;
+                    } catch (e) {
+                        return null;
+                    }
+                };
+
+
+                const __imagebamFullFromThumb = (thumbUrl) => {
+                    if (!thumbUrl) return null;
+                    const s = String(thumbUrl).trim();
+                    if (!s) return null;
+
+                    try {
+                        const u = new URL(s, location.origin);
+                        const host = (u.hostname || '').toLowerCase();
+                        if (!host.endsWith('.imagebam.com')) return null;
+                        if (!host.startsWith('thumbs')) return null;
+
+                        const newHost = host.replace(/^thumbs/i, 'images');
+                        let path = u.pathname || '';
+                        // common thumb naming: *_t.jpg
+                        path = path.replace(/_t(\.[a-z0-9]+)$/i, '$1');
+                        // some variants use -t
+                        path = path.replace(/-t(\.[a-z0-9]+)$/i, '$1');
+
+                        return `${u.protocol}//${newHost}${path}`;
+                    } catch (e) {
+                        return null;
+                    }
+                };
+
+                const sel = [
+                    'a[href*="/redirect/"]',
+                    'a[href^="/redirect"]',
+                    'a[href*="redirect?"]',
+                    'a[href*="link-proxy"]',
+                ].join(', ');
+
+                messageContentClone.querySelectorAll(sel).forEach((a) => {
+                    // Some XenForo installs store the redirect/protected URL in different attrs.
+                    const candidates = [
+                        a.getAttribute('href'),
+                        a.getAttribute('data-href'),
+                        a.getAttribute('data-url'),
+                    ].filter(Boolean);
+
+                    for (const c of candidates) {
+                        const decoded = __decodeForumRedirect(c);
+                        if (decoded) {
+                            let finalUrl = decoded;
+a.setAttribute('data-url', finalUrl);
+                            a.setAttribute('href', finalUrl);
+                            a.setAttribute('data-xfpd-decoded', '1');
+                            break;
+                        }
+                    }
+                });
+
+                // Prevent common thumbnail URLs inside decoded redirect links from being treated as direct downloads.
+                // (Keeps the UI intact for non-thumb embeds, but avoids downloading *_t.jpg / thumbs.* previews.)
+                try {
+                    messageContentClone.querySelectorAll('a[data-xfpd-decoded="1"] img').forEach((img) => {
+                        const u = (img.getAttribute('data-url') || img.getAttribute('src') || '').trim();
+                        if (!u) return;
+
+                        let host = '';
+                        let path = '';
+                        try {
+                            const uu = new URL(u, location.origin);
+                            host = (uu.hostname || '').toLowerCase();
+                            path = (uu.pathname || '').toLowerCase();
+                        } catch (e) {
+                            // ignore
+                        }
+
+                        const isThumb =
+                            host.includes('thumb') ||
+                            /_t\.(?:jpe?g|png|webp|gif)$/i.test(u) ||
+                            /\/thumbs?\//i.test(path);
+
+                        if (isThumb) img.remove();
+                    });
+                } catch (e) { /* ignore */ }
             } catch (e) { /* ignore */ }
 
             // Extract spoilers from the post content.
@@ -1506,8 +1981,10 @@ const hosts = [
     ],
     ['Bunkr:Albums', [/bunkrr?r?\.(ac|ax|black|cat|ci|cr|fi|is|media|nu|pk|ph|ps|red|ru|se|si|site|sk|ws|ru|su|org)\/a\//]],
     ['Give.xxx:Profiles', [/give.xxx\/[~an@_-]+/]],
-    ['Pixeldrain:', [/(focus\.)?pixeldrain.com\/[lu]\//]],
+    ['Pixeldrain:', [/(focus\.)?(?:pixeldrain\.com|pixeldrain\.net|pixeldra\.in)\/[lu]\//]],
     ['Gofile:', [/gofile.io\/d/]],
+    ['Filester:links', [/filester\.me\/d\//]],
+    ['Filester:albums', [/filester\.me\/f\/[~an@-_.]+<no_qs>/]],
     ['Box.com:', [/m\.box\.com\//]],
     ['Yandex:', [/(disk\.)?yandex\.[a-z]+/]],
     ['Cyberfile:', [/!!https:\/\/cyberfile.(su|me)\/\w+(\/)?(?=")/, /cyberfile.(su|me)\/folder\//]],
@@ -1522,6 +1999,91 @@ const hosts = [
  *
  * @type {((RegExp[]|(function(*): *))[]|(RegExp[]|(function(*, *): Promise<{dom: *, source: *, folderName: *, resolved}>))[]|(RegExp[]|(function(*, *): Promise<string>))[]|(RegExp[]|(function(*, *): Promise<{dom: *, source: *, folderName: *, resolved}>))[]|(RegExp[]|(function(*): *))[])[]}
  */
+/* -------------------------------------------------------------------------
+ * Turbo sign hardening:
+ * - timeout 5000ms
+ * - retry 2x with jitter delay 700–1400ms
+ * This avoids rare ~50s "waiting" stalls on https://turbo.cr/api/sign
+ * ------------------------------------------------------------------------- */
+const XFPD_TURBO_SIGN_TIMEOUT_MS = 5000;
+const XFPD_TURBO_SIGN_RETRIES = 2;
+const XFPD_TURBO_SIGN_JITTER_MIN_MS = 700;
+const XFPD_TURBO_SIGN_JITTER_MAX_MS = 1400;
+
+const xfpdSleepMs = ms => new Promise(r => setTimeout(r, ms));
+const xfpdJitterMs = (minMs, maxMs) => {
+    const lo = Math.min(minMs, maxMs);
+    const hi = Math.max(minMs, maxMs);
+    return lo + Math.floor(Math.random() * (hi - lo + 1));
+};
+
+const xfpdGmGetText = (getUrl, headers, timeoutMs) => new Promise(resolve => {
+    try {
+        GM_xmlhttpRequest({
+            method: 'GET',
+            url: String(getUrl),
+            headers: headers || {},
+            responseType: 'text',
+            anonymous: false,
+            timeout: Number(timeoutMs) || 0,
+            onload: r => resolve({ ok: true, status: r.status || 0, text: String(r.responseText || r.response || '') }),
+            onerror: () => resolve({ ok: false, status: 0, text: '' }),
+            ontimeout: () => resolve({ ok: false, status: 0, text: '' }),
+        });
+    } catch (e) {
+        resolve({ ok: false, status: 0, text: '' });
+    }
+});
+
+const xfpdTurboFetchSignJsonWithTimeout = async (turboId, refererUrl) => {
+    const id = String(turboId || '').trim();
+    if (!id) return null;
+
+    const embedUrl = String(refererUrl || `https://turbo.cr/embed/${id}`);
+    const headers = {
+        Accept: 'application/json, text/plain, */*',
+        Referer: embedUrl,
+    };
+
+    const signUrls = [
+        `https://turbo.cr/api/sign?v=${encodeURIComponent(id)}`,
+        `https://turbo.cr/sign?v=${encodeURIComponent(id)}`, // legacy fallback
+    ];
+
+    for (let attempt = 0; attempt <= XFPD_TURBO_SIGN_RETRIES; attempt++) {
+        for (const signUrl of signUrls) {
+            const r = await xfpdGmGetText(signUrl, headers, XFPD_TURBO_SIGN_TIMEOUT_MS);
+            if (!r || !r.ok || r.status !== 200 || !r.text) continue;
+
+            let j = null;
+            try { j = JSON.parse(r.text); } catch (e) { j = null; }
+            if (!j || !j.url) continue;
+
+            const ok = (j.success === undefined) ? true : !!j.success;
+            if (ok) return j;
+        }
+        if (attempt < XFPD_TURBO_SIGN_RETRIES) {
+            await xfpdSleepMs(xfpdJitterMs(XFPD_TURBO_SIGN_JITTER_MIN_MS, XFPD_TURBO_SIGN_JITTER_MAX_MS));
+        }
+    }
+    return null;
+};
+
+const xfpdTurboSignUrlWithTimeout = async (turboId, refererUrl, nameHint) => {
+    const j = await xfpdTurboFetchSignJsonWithTimeout(turboId, refererUrl);
+    if (!j || !j.url) return null;
+
+    let signed = j.url;
+    const originalName = j.original_filename || nameHint;
+
+    // Preserve filename for Turbo CDN downloads (used later for saveAs)
+    if (signed && originalName && !/[?&]fn=/.test(String(signed))) {
+        const enc = encodeURIComponent(String(originalName)).replace(/%20/g, '+');
+        signed += (signed.includes('?') ? '&' : '?') + 'fn=' + enc;
+    }
+    return signed;
+};
+
 const resolvers = [
     [
         [/https?:\/\/nitter\.(.{1,20})\/pic\/(orig\/)?media%2F(.{1,15})/i],
@@ -1843,35 +2405,140 @@ const resolvers = [
         [/((stream|cdn(\d+)?)\.)?bunkrr?r?\.(ac|ax|black|cat|ci|cr|fi|is|media|nu|pk|ph|ps|red|ru|se|si|site|sk|ws|su|org).*?\.|((i|cdn)(\d+)?\.)?bunkrr?r?\.(ac|ax|black|cat|ci|cr|fi|is|media|nu|pk|ph|ps|red|ru|se|si|site|sk|ws|su|org)\/(v\/)?/i, /:!bunkrr?r?\.(ac|ax|black|cat|ci|cr|fi|is|media|nu|pk|ph|ps|red|ru|se|si|site|sk|ws|su|org)\/a\//],
         async (url, http) => {
             try {
-                const { pathname } = new URL(url);
+                const cleanUrl = String(url || '').split('#')[0];
 
-                const segments = pathname.split('/').filter(Boolean);
-                const index = segments.findIndex(s => ['f','v','d'].includes(s));
-                const id = index > -1 ? segments.slice(index + 1).join('/') : segments.pop();
-
-                const response = await http.post(
-                    `https://bunkr.cr/api/vs`,
-                    JSON.stringify({ slug: id }),
-                    {},
-                    { 'Content-Type': 'application/json' }
-                );
-
-                const data = JSON.parse(response.source);
-
-                let finalURL;
-                if (!data.encrypted) {
-                    finalURL = data.url;
-                } else {
-                    const binaryString = atob(data.url);
-                    const keyBytes = new TextEncoder().encode(`SECRET_KEY_${Math.floor(data.timestamp / 3600)}`);
-                    finalURL = Array.from(binaryString)
-                        .map((char, i) => String.fromCharCode(char.charCodeAt(0) ^ keyBytes[i % keyBytes.length]))
-                        .join('');
+                // If this already looks like a direct media file URL, keep it (don't call /api/vs).
+                // (CDN links usually include the real filename already.)
+                if (
+                    /\.(?:mp4|m4v|webm|mov|mkv|jpg|jpeg|png|gif|webp|zip|rar|7z|pdf)(?:$|\?)/i.test(cleanUrl) &&
+                    !/\/(?:v|f|d)\//i.test(cleanUrl)
+                ) {
+                    return cleanUrl;
                 }
 
-                return finalURL;
+                const u = new URL(cleanUrl);
+                const origin = u.origin;
+                const pathname = u.pathname || '';
+
+                const segments = pathname.split('/').filter(Boolean);
+                const index = segments.findIndex(s => ['f', 'v', 'd'].includes(s));
+                const id = index > -1 ? segments.slice(index + 1).join('/') : segments.pop();
+
+// Best-effort: read the human filename from the view page (og:title / h1 / <title>).
+// This lets us rename CDN GUID links back to the original filename.
+try {
+    const strip = (s) => String(s || '').split('#')[0].split('?')[0];
+    const bases = xfpdBunkrFilterBases([origin, 'https://bunkr.pk', 'https://bunkr.cr']);
+
+    for (const base of bases) {
+        const base0 = String(base || '').replace(/\/$/, '');
+        const candidates = [];
+        if (/\/v\//i.test(pathname) && base0 === origin) candidates.push(cleanUrl);
+        candidates.push(`${base0}/v/${id}`);
+        candidates.push(`${base0}/f/${id}`);
+
+        const uniq = candidates.filter((v, i, a) => a.indexOf(v) === i);
+        let found = false;
+
+        for (const viewUrl of uniq) {
+            const viewRes = await xfpdBunkrGetWithCfRetry(http, viewUrl, base0, base0 === 'https://bunkr.cr');
+            const dom = viewRes?.dom;
+            const viewSource = viewRes?.source || '';
+
+            // If Cloudflare interstitial is active, don't capture a bogus "Just a moment..." title as a filename hint.
+            if (xfpdLooksLikeCfChallenge(viewSource, dom)) continue;
+
+            let title =
+                dom?.querySelector?.('meta[property="og:title"]')?.getAttribute?.('content') ||
+                dom?.querySelector?.('h1')?.textContent ||
+                dom?.querySelector?.('title')?.textContent ||
+                '';
+            title = String(title || '').replace(/\s+/g, ' ').trim();
+            title = title.replace(/\s*\|\s*Bunkr\s*$/i, '').trim();
+
+            if (title && !xfpdLooksLikeCfFilenameHint(title)) {
+                bunkrNameByUrl.set(cleanUrl, title);
+                bunkrNameByUrl.set(strip(cleanUrl), title);
+                bunkrNameByUrl.set(viewUrl, title);
+                bunkrNameByUrl.set(strip(viewUrl), title);
+                found = true;
+                break;
+            }
+        }
+
+        if (found) break;
+    }
+} catch (e) {}
+
+                const decodeFinalUrl = data => {
+                    try {
+                        if (!data || !data.url) return null;
+                        if (!data.encrypted) return data.url;
+
+                        const binaryString = atob(data.url);
+                        const keyBytes = new TextEncoder().encode(`SECRET_KEY_${Math.floor(data.timestamp / 3600)}`);
+
+                        return Array.from(binaryString)
+                            .map((char, i) => String.fromCharCode(char.charCodeAt(0) ^ keyBytes[i % keyBytes.length]))
+                            .join('');
+                    } catch (e) {
+                        return null;
+                    }
+                };
+
+                const tryVs = async base => {
+                    const base0 = String(base || '').replace(/\/$/, '');
+                    const vsEndpoint = `${base0}/api/vs`;
+
+                    try {
+                        const data = await xfpdBunkrPostVsWithCfRetry(http, vsEndpoint, id, cleanUrl, base0, base0 === 'https://bunkr.cr');
+                        if (!data) return null;
+
+                        let finalUrl = decodeFinalUrl(data);
+
+                        if (!finalUrl || typeof finalUrl !== 'string') return null;
+                        finalUrl = finalUrl.trim();
+                        if (finalUrl.startsWith('//')) finalUrl = 'https:' + finalUrl;
+
+                        // Attach filename hint to the final URL too (so later download naming can pick it up).
+                        try {
+                            const strip = (s) => String(s || '').split('#')[0].split('?')[0];
+
+                            // Prefer filename from /api/vs JSON when available (works even if /v/ is blocked by CF/403).
+                            const vsHint = xfpdBunkrExtractNameFromVsData(data);
+
+                            const hint =
+                                vsHint ||
+                                bunkrNameByUrl.get(cleanUrl) ||
+                                bunkrNameByUrl.get(strip(cleanUrl)) ||
+                                '';
+
+                            if (hint && String(hint).trim() && !xfpdLooksLikeCfFilenameHint(hint)) {
+                                const h0 = String(hint).trim();
+                                bunkrNameByUrl.set(cleanUrl, h0);
+                                bunkrNameByUrl.set(strip(cleanUrl), h0);
+                                bunkrNameByUrl.set(finalUrl, h0);
+                                bunkrNameByUrl.set(strip(finalUrl), h0);
+                            }
+                        } catch (e) {}
+return finalUrl;
+                    } catch (e) {
+                        return null;
+                    }
+                };
+
+                const apiBases = xfpdBunkrFilterBases([origin, 'https://bunkr.pk', 'https://bunkr.cr']);
+                let finalURL = null;
+
+                for (const b of apiBases) {
+                    finalURL = await tryVs(b);
+                    if (finalURL) break;
+                }
+
+                return finalURL || cleanUrl;
             } catch (error) {
-                console.error(error.message)
+                console.error(error?.message || error);
+                return url;
             }
         },
     ],
@@ -1883,6 +2550,9 @@ const resolvers = [
 
         const resolved = [];
         const seen = new Set();
+
+        // Bunkr album: keep the human filename from the album grid (title / .theName) and attach it to resolved CDN URLs.
+        const nameHintBySlug = new Map();
 
         let firstDom = null;
         let firstSource = null;
@@ -1921,7 +2591,20 @@ const resolvers = [
 
                 const href = a?.getAttribute?.('href') || '';
                 const m = href.match(/\/(f|v|d)\/([^\/?#]+)/i);
-                if (m && m[2]) slugs.push(m[2]);
+                if (m && m[2]) {
+                    const slug = m[2];
+                    slugs.push(slug);
+
+                    // Name hint is visible on /a/ pages (e.g. <div title="...mp4"> or .theName). Use it later when we only have a CDN GUID URL.
+                    try {
+                        let hint = c?.getAttribute?.('title') || '';
+                        if (!hint) hint = c?.querySelector?.('.theName')?.textContent || '';
+                        if (!hint) hint = c?.querySelector?.('p.truncate')?.textContent || '';
+                        if (!hint) hint = c?.querySelector?.('.grid-images_box-txt p')?.textContent || '';
+                        hint = String(hint || '').replace(/\s+/g, ' ').trim();
+                        if (hint) nameHintBySlug.set(slug, hint);
+                    } catch (e) {}
+                }
             }
 
             return slugs;
@@ -1951,28 +2634,63 @@ const resolvers = [
             try { return new URL(baseUrl).origin; } catch (e) { return 'https://bunkr.cr'; }
         })();
 
-        const vsEndpoint = `${origin}/api/vs`;
+        const vsBasesAll = [origin, 'https://bunkr.pk', 'https://bunkr.cr'].filter((v, i, a) => a.indexOf(v) === i);
 
         let folderName = null;
 
         const MAX_PAGES = 500;
         const CONCURRENCY = 8;
 
+        const albumUrlObj = (() => {
+            try { return new URL(baseUrl); } catch (e) { return null; }
+        })();
+        const albumPath = (albumUrlObj && albumUrlObj.pathname) ? albumUrlObj.pathname : (() => {
+            try { return new URL(cleanUrl).pathname; } catch (e) { return '/'; }
+        })();
+        const albumBasesAll = [origin, 'https://bunkr.pk', 'https://bunkr.cr'].filter((v, i, a) => a.indexOf(v) === i);
+        let albumBaseChosen = null;
+
         for (let page = 1; page <= MAX_PAGES; page++) {
-            const pageUrl = `${baseUrl}?page=${page}`;
+            const requestedPageUrl = `${baseUrl}?page=${page}`;
 
             if (typeof progressCB === 'function') {
-                progressCB(`Resolving: ${pageUrl}`);
+                progressCB(`Resolving: ${requestedPageUrl}`);
             }
 
-            let dom, source;
-            try {
-                ({ dom, source } = await http.get(pageUrl));
-            } catch (e) {
+            const pageBases = albumBaseChosen
+                ? [albumBaseChosen, ...xfpdBunkrFilterBases(albumBasesAll).filter(b => b !== albumBaseChosen)]
+                : xfpdBunkrFilterBases(albumBasesAll);
+
+            let dom = null, source = '';
+            let pageUrl = requestedPageUrl;
+            let slugs = [];
+
+            for (const base of pageBases) {
+                const base0 = String(base || '').replace(/\/$/, '');
+                const candidate = `${base0}${albumPath}?page=${page}`;
+                pageUrl = candidate;
+
+                try {
+                    ({ dom, source } = await xfpdBunkrGetWithCfRetry(http, candidate, base0, base0 === 'https://bunkr.cr'));
+                } catch (e) {
+                    dom = null;
+                    source = '';
+                }
+
+                if (xfpdLooksLikeCfChallenge(source, dom)) continue;
+
+                slugs = extractSlugsFromDom(dom);
+                if (page === 1 && !slugs.length) {
+                    continue;
+                }
+
+                if (!albumBaseChosen) albumBaseChosen = base0;
                 break;
             }
 
-            if (page === 1) {
+            if (!dom) break;
+            if (!slugs.length) break;
+if (page === 1) {
                 firstDom = dom;
                 firstSource = source;
 
@@ -1980,9 +2698,6 @@ const resolvers = [
                 const title = (h1?.innerText || h1?.textContent || '').split('\n')[0]?.trim();
                 if (title) folderName = sanitizeName(title);
             }
-
-            const slugs = extractSlugsFromDom(dom);
-            if (!slugs.length) break;
 
             const fresh = [];
             for (const s of slugs) {
@@ -1994,19 +2709,34 @@ const resolvers = [
             if (!fresh.length) break;
 
             const urls = await asyncPool(CONCURRENCY, fresh, async (slug) => {
-                const response = await http.post(
-                    vsEndpoint,
-                    JSON.stringify({ slug }),
-                    {},
-                    {
-                        'Content-Type': 'application/json',
-                        Referer: pageUrl,
-                        Origin: origin,
-                    }
-                );
+                let data = null;
+                for (const base of xfpdBunkrFilterBases(vsBasesAll)) {
+                    const base0 = String(base || '').replace(/\/$/, '');
+                    const ep = `${base0}/api/vs`;
+                    data = await xfpdBunkrPostVsWithCfRetry(http, ep, slug, pageUrl, base0, base0 === 'https://bunkr.cr');
+                    if (data && typeof data === 'object' && ('url' in data)) break;
+                    data = null;
+                }
+                if (!data) return null;
 
-                const data = JSON.parse(response?.source || '{}');
-                return decodeFinalUrl(data);
+                let finalUrl = decodeFinalUrl(data);
+                if (!finalUrl || typeof finalUrl !== 'string') return null;
+
+                finalUrl = finalUrl.trim();
+                if (finalUrl.startsWith('//')) finalUrl = 'https:' + finalUrl;
+
+                // Attach the album filename hint to the final URL so download naming can use it.
+                try {
+                    const strip = (s) => String(s || '').split('#')[0].split('?')[0];
+                    const hint = (nameHintBySlug.get(slug) || xfpdBunkrExtractNameFromVsData(data) || '');
+                    if (hint && String(hint).trim()) {
+                        const h0 = String(hint).trim();
+                        bunkrNameByUrl.set(finalUrl, h0);
+                        bunkrNameByUrl.set(strip(finalUrl), h0);
+                    }
+                } catch (e) {}
+
+                return finalUrl;
             });
 
             for (const u of urls) if (u) resolved.push(u);
@@ -2083,7 +2813,7 @@ const resolvers = [
         },
     ],
     [
-        [/pixeldrain.com\/[ul]/],
+        [/(?:focus\.)?(?:pixeldrain\.com|pixeldrain\.net|pixeldra\.in)\/[ul]/],
         url => {
             let resolved = url.replace('/u/', '/api/file/').replace('/l/', '/api/list/');
             resolved = h.contains('/api/list', resolved) ? `${resolved}/zip` : resolved;
@@ -2657,35 +3387,12 @@ const resolvers = [
 
             for (const id of ids) {
                 const embedUrl = `https://turbo.cr/embed/${id}`;
-                const signUrls = [
-                    `https://turbo.cr/api/sign?v=${encodeURIComponent(id)}`,
-                    `https://turbo.cr/sign?v=${encodeURIComponent(id)}`, // legacy fallback
-                ];
-
                 let signed = null;
+                try {
+                    signed = await xfpdTurboSignUrlWithTimeout(id, embedUrl, idToName.get(id));
+                } catch (e) {}
 
-                for (const signUrl of signUrls) {
-                    try {
-                        const { source: s, status } = await http.get(signUrl, {}, { Referer: embedUrl }, 'text');
-                        if (status === 200 && s) {
-                            const j = JSON.parse(s);
-                            if (j && j.success && j.url) {
-                                signed = j.url;
-                                const originalName = j.original_filename || idToName.get(id);
-                                if (signed && originalName) {
-                                    // Ensure filename is preserved for Turbo CDN downloads
-                                    if (!/[?&]fn=/.test(signed)) {
-                                        const enc = encodeURIComponent(String(originalName)).replace(/%20/g, '+');
-                                        signed += (signed.includes('?') ? '&' : '?') + 'fn=' + enc;
-                                    }
-                                }
-                                break;
-                            }
-                        }
-                    } catch (e) {}
-                }
-
-                // Fallback: if signing fails, try to read media URL from the embed page
+// Fallback: if signing fails, try to read media URL from the embed page
                 if (!signed) {
                     try {
                         const { dom: edom } = await http.get(embedUrl, {}, { Referer: embedUrl });
@@ -2732,33 +3439,12 @@ const resolvers = [
             }
 
             const embedUrl = `https://turbo.cr/embed/${id}`;
-            const signUrls = [
-                `https://turbo.cr/api/sign?v=${encodeURIComponent(id)}`,
-                `https://turbo.cr/sign?v=${encodeURIComponent(id)}`, // legacy fallback
-            ];
+            try {
+                const signed = await xfpdTurboSignUrlWithTimeout(id, embedUrl, null);
+                if (signed) return signed;
+            } catch (e) {}
 
-            for (const signUrl of signUrls) {
-                try {
-                    const { source, status } = await http.get(signUrl, {}, { Referer: embedUrl }, 'text');
-                    if (status === 200 && source) {
-                        const j = JSON.parse(source);
-                        if (j && j.success && j.url) {
-                            let signed = j.url;
-                            const originalName = j.original_filename;
-                            if (signed && originalName) {
-                                // Ensure filename is preserved for Turbo CDN downloads
-                                if (!/[?&]fn=/.test(signed)) {
-                                    const enc = encodeURIComponent(String(originalName)).replace(/%20/g, '+');
-                                    signed += (signed.includes('?') ? '&' : '?') + 'fn=' + enc;
-                                }
-                            }
-                            return signed;
-                        }
-                    }
-                } catch (e) {}
-            }
-
-            // Fallback: try to read <source>/<video> directly from the embed page
+// Fallback: try to read <source>/<video> directly from the embed page
             try {
                 const { dom } = await http.get(embedUrl, {}, { Referer: embedUrl });
                 const src =
@@ -2784,34 +3470,12 @@ const resolvers = [
             }
 
             const embedUrl = `https://turbo.cr/embed/${id}`;
-            const signUrls = [
-                `https://turbo.cr/api/sign?v=${encodeURIComponent(id)}` ,
-                `https://turbo.cr/sign?v=${encodeURIComponent(id)}` ,// legacy fallback
-            ];
+            try {
+                const signed = await xfpdTurboSignUrlWithTimeout(id, embedUrl, null);
+                if (signed) return signed;
+            } catch (e) {}
 
-            // Primary: use Turbo's sign endpoint (player does this)
-            for (const signUrl of signUrls) {
-                try {
-                    const { source, status } = await http.get(signUrl, {}, { Referer: embedUrl }, 'text');
-                    if (status === 200 && source) {
-                        const j = JSON.parse(source);
-                        if (j && j.success && j.url) {
-                            let signed = j.url;
-                            const originalName = j.original_filename;
-                            if (signed && originalName) {
-                                // Ensure filename is preserved for Turbo CDN downloads
-                                if (!/[?&]fn=/.test(signed)) {
-                                    const enc = encodeURIComponent(String(originalName)).replace(/%20/g, '+');
-                                    signed += (signed.includes('?') ? '&' : '?') + 'fn=' + enc;
-                                }
-                            }
-                            return signed;
-                        }
-                    }
-                } catch (e) {}
-            }
-
-            // Fallback: try to read <source> / <video> directly if present
+// Fallback: try to read <source> / <video> directly if present
             try {
                 const { dom } = await http.get(embedUrl, {}, { Referer: embedUrl });
                 const src =
@@ -3291,7 +3955,7 @@ const resolvers = [
                             headers: hdrs || {},
                             responseType: 'text',
                             anonymous: false,
-                            timeout: 15000,
+                            timeout: 6000,
                             onload: r => resolve({ status: r.status || 0, source: String(r.responseText || r.response || '') }),
                             onerror: () => resolve({ status: 0, source: '' }),
                             ontimeout: () => resolve({ status: 0, source: '' }),
@@ -3619,6 +4283,7 @@ const resolvers = [
             return null;
         },
     ],
+
     [
         [/imagebam.com\/(view|gallery)/],
         async (url, http) => {
@@ -3656,7 +4321,8 @@ const resolvers = [
             }
         },
     ],
-    [[/images\d.imagebam.com/], url => url],
+
+[[/images\d.imagebam.com/], url => url],
     [[/imgvb.com\/images\//, /:!imgvb.com\/album\//], url => url.replace('.th.', '.').replace('.md.', '.')],
     [
         [/imgvb.com\/album\//],
@@ -3713,6 +4379,966 @@ const resolvers = [
             };
         },
     ],
+
+[
+    [/filester\.me\/f\//],
+    async (url, http, spoilers, postId, postSettings, progressCB) => {
+        try {
+            url = String(url || '').trim();
+            if (!url) return null;
+
+            if (url.startsWith('//')) url = 'https:' + url;
+            if (!/^https?:\/\//i.test(url)) url = 'https://' + url.replace(/^\/+/, '');
+
+            const u0 = new URL(url);
+            const origin = `${u0.protocol}//${u0.hostname}`;
+
+            const mId = (u0.pathname || '').match(/\/f\/([^\/?#]+)/i);
+            if (!mId || !mId[1]) return url;
+
+            const albumId = mId[1];
+            const baseUrl = `${origin}/f/${albumId}`;
+
+            const resolved = [];
+            const seen = new Set();
+
+            let firstDom = null;
+            let firstSource = '';
+            let folderName = '';
+
+            const MAX_PAGES = 500;
+
+            const getFolderName = (dom, html) => {
+                try {
+                    const pickClean = (s) => {
+                        s = String(s || '').trim();
+                        if (!s) return '';
+
+                        // Strip common suffixes.
+                        s = s.replace(/\s*\|\s*filester\.me\s*$/i, '').trim();
+                        s = s.replace(/\s*-\s*filester\.me\s*$/i, '').trim();
+
+                        // Replace remaining pipes with a Windows-safe separator.
+                        if (s.includes('|')) s = s.replace(/\s*\|\s*/g, ' - ').trim();
+
+                        // Final cleanup
+                        s = s.replace(/\s+/g, ' ').trim();
+
+                        return s;
+                    };
+
+                    const isBad = (t) => {
+                        const x = String(t || '').trim();
+                        if (!x) return true;
+                        if (/^filester\.me\b/i.test(x)) return true;
+                        if (/BETA\s*\d/i.test(x)) return true;
+                        return false;
+                    };
+
+                    let t = '';
+
+                    // DOM: og:title first
+                    try {
+                        t = pickClean(dom?.querySelector('meta[property="og:title"]')?.getAttribute('content') || '');
+                    } catch (e) {}
+                    try {
+                        if (!t) t = pickClean(dom?.querySelector('meta[name="og:title"]')?.getAttribute('content') || '');
+                    } catch (e) {}
+                    try {
+                        if (!t) t = pickClean(dom?.querySelector('title')?.textContent || '');
+                    } catch (e) {}
+
+                    // HTML fallback (order-independent meta parsing)
+                    if (isBad(t)) {
+                        const s = String(html || '');
+                        if (s) {
+                            try {
+                                const mTag =
+                                    /<meta\b[^>]*\b(?:property|name)=["']og:title["'][^>]*>/i.exec(s) ||
+                                    /<meta\b[^>]*\bcontent=["'][^"']+["'][^>]*\b(?:property|name)=["']og:title["'][^>]*>/i.exec(s);
+                                if (mTag && mTag[0]) {
+                                    const mC = /\bcontent=["']([^"']+)["']/i.exec(mTag[0]);
+                                    if (mC && mC[1]) t = pickClean(mC[1]);
+                                }
+                            } catch (e) {}
+
+                            try {
+                                if (isBad(t)) {
+                                    const mT = /<title[^>]*>\s*([^<]+?)\s*<\/title>/i.exec(s);
+                                    if (mT && mT[1]) t = pickClean(mT[1]);
+                                }
+                            } catch (e) {}
+                        }
+                    }
+
+                    if (isBad(t)) return albumId;
+                    return t;
+                } catch (e) {}
+                return albumId;
+            };
+
+            const addHint = (slug, name, sizeBytes) => {
+                try {
+                    const dUrl = `${origin}/d/${slug}`;
+                    if (name) {
+                        try { filesterNameBySlug.set(String(slug), String(name)); } catch (e) {}
+                        try { filesterNameByUrl.set(String(dUrl), String(name)); } catch (e) {}
+                    }
+                    if (sizeBytes) {
+                        try { filesterSizeBySlug.set(String(slug), Number(sizeBytes)); } catch (e) {}
+                        try { filesterSizeByUrl.set(String(dUrl), Number(sizeBytes)); } catch (e) {}
+                    }
+                    try { filesterSlugByUrl.set(String(dUrl), String(slug)); } catch (e) {}
+                } catch (e) {}
+            };
+
+            const parsePage = (dom, html) => {
+                const out = [];
+                try {
+                    const items = dom ? [...dom.querySelectorAll('div.file-item')] : [];
+                    for (const el of items) {
+                        let slug = '';
+                        try {
+                            const oc = String(el.getAttribute('onclick') || '');
+                            const m = /\/d\/([^'"?\s]+)/i.exec(oc);
+                            if (m && m[1]) slug = m[1];
+                        } catch (e) {}
+
+                        if (!slug) {
+                            try {
+                                const btn = el.querySelector('button.download-btn');
+                                const oc2 = String(btn?.getAttribute?.('onclick') || '');
+                                const m2 = /downloadFile\(\s*'([^']+)'/i.exec(oc2);
+                                if (m2 && m2[1]) slug = m2[1];
+                            } catch (e) {}
+                        }
+
+                        if (!slug) {
+                            try {
+                                const a = el.querySelector('a[href*="/d/"]');
+                                const href = String(a?.getAttribute?.('href') || '');
+                                const m3 = /\/d\/([^\/?#]+)/i.exec(href);
+                                if (m3 && m3[1]) slug = m3[1];
+                            } catch (e) {}
+                        }
+
+                        if (!slug) continue;
+
+                        let name = '';
+                        let size = 0;
+
+                        try { name = String(el.getAttribute('data-name') || '').trim(); } catch (e) {}
+                        if (!name) {
+                            try { name = String(el.querySelector('.file-name')?.textContent || '').trim(); } catch (e) {}
+                        }
+
+                        try { size = Number(el.getAttribute('data-size') || 0) || 0; } catch (e) {}
+
+                        out.push({ slug, name, size });
+                    }
+                } catch (e) {}
+
+                // Regex fallback if DOM parsing is incomplete
+                try {
+                    const s = String(html || '');
+                    if (s) {
+                        const rx = /data-name="([^"]+)"[^>]*\bonclick="window\.location\.href='\/d\/([^']+)'/gi;
+                        let m;
+                        while ((m = rx.exec(s)) !== null) {
+                            const name = String(m[1] || '').trim();
+                            const slug = String(m[2] || '').trim();
+                            if (!slug) continue;
+                            out.push({ slug, name, size: 0 });
+                        }
+                    }
+                } catch (e) {}
+
+                return out;
+            };
+
+            for (let page = 1; page <= MAX_PAGES; page++) {
+                const u = new URL(baseUrl);
+                u.searchParams.set('page', String(page));
+                const pageUrl = u.toString();
+
+                if (typeof progressCB === 'function') {
+                    progressCB(`[Filester] Resolving album page ${page}`);
+                }
+
+                let dom = null;
+                let source = '';
+                try {
+                    const r = await http.get(pageUrl, {}, {
+                    Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                    Referer: baseUrl,
+                    __xfpd_withCredentials: true,
+                });
+                    dom = r?.dom;
+                    source = r?.source || '';
+                } catch (e) {
+                    break;
+                }
+
+                if (page === 1) {
+                    firstDom = dom;
+                    firstSource = source;
+                    folderName = getFolderName(dom, source);
+                }
+
+                const before = seen.size;
+
+                const entries = parsePage(dom, source);
+                for (const it of entries) {
+                    const slug = String(it.slug || '').trim();
+                    if (!slug || seen.has(slug)) continue;
+                    seen.add(slug);
+
+                    const name = String(it.name || '').trim();
+                    const size = Number(it.size || 0) || 0;
+                    addHint(slug, name, size);
+
+                    resolved.push(`${origin}/d/${slug}`);
+                }
+
+                const added = seen.size - before;
+                if (added <= 0) break;
+            }
+
+            if (!folderName) folderName = albumId;
+
+            if (!resolved.length) return url;
+
+            return { dom: firstDom, source: firstSource, folderName, resolved };
+        } catch (e) {
+            return url;
+        }
+    },
+],
+[
+    [/filester\.me\/d\//],
+    async (url, http, spoilers, postId, postSettings, progressCB) => {
+        const slug = (() => {
+            try {
+                const u = new URL(url);
+                const parts = String(u.pathname || '').split('/').filter(Boolean);
+                return parts.length ? parts[parts.length - 1] : '';
+            } catch (e) {
+                const m = /filester\.me\/d\/([^\/?#]+)/i.exec(String(url || ''));
+                return m && m[1] ? m[1] : '';
+            }
+        })();
+
+        if (!slug) return null;
+
+        const apiBase = 'https://filester.me';
+
+        const mkHeaders = () => ({
+            Accept: 'application/json, text/plain, */*',
+            'Content-Type': 'application/json;charset=UTF-8',
+            Origin: apiBase,
+            Referer: url,
+            __xfpd_withCredentials: true,
+        });
+
+        const safeJson = (txt) => {
+            try { return JSON.parse(String(txt || '')); } catch (e) { return null; }
+        };
+
+        const walk = (obj, cb, maxNodes = 5000) => {
+            const seen = new Set();
+            const q = [obj];
+            let nodes = 0;
+            while (q.length && nodes++ < maxNodes) {
+                const cur = q.shift();
+                if (!cur || typeof cur !== 'object') continue;
+                if (seen.has(cur)) continue;
+                seen.add(cur);
+                try {
+                    if (cb(cur) === true) return true;
+                } catch (e) {}
+                if (Array.isArray(cur)) {
+                    for (const it of cur) q.push(it);
+                } else {
+                    for (const k of Object.keys(cur)) q.push(cur[k]);
+                }
+            }
+            return false;
+        };
+
+        const deepFindValueByKeys = (obj, keys) => {
+            const keySet = new Set((keys || []).map(k => String(k).toLowerCase()));
+            let out = null;
+            walk(obj, (o) => {
+                if (!o || typeof o !== 'object' || Array.isArray(o)) return false;
+                for (const k of Object.keys(o)) {
+                    if (keySet.has(String(k).toLowerCase())) {
+                        const v = o[k];
+                        if (v !== null && v !== undefined) {
+                            out = v;
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            });
+            return out;
+        };
+
+        const normalizeUrl = (s) => {
+            if (!s || typeof s !== 'string') return null;
+            const t = s.trim();
+            if (/^https?:\/\//i.test(t)) return t;
+            if (t.startsWith('/')) {
+                try { return new URL(t, apiBase).href; } catch (e) { return null; }
+            }
+            if (/^[dv]\//i.test(t)) {
+                try { return new URL('/' + t.replace(/^\/+/, ''), apiBase).href; } catch (e) { return null; }
+            }
+            return null;
+        };
+
+        const pickBestUrl = (obj) => {
+            const candidates = [];
+            const push = (v) => {
+                const u = normalizeUrl(v);
+                if (u) candidates.push(u);
+            };
+
+            const prefer = deepFindValueByKeys(obj, ['download_url', 'downloadUrl', 'url', 'link', 'href', 'direct', 'download', 'view_url', 'viewUrl']);
+            if (prefer) push(prefer);
+
+            walk(obj, (o) => {
+                for (const k of Object.keys(o || {})) {
+                    const v = o[k];
+                    if (typeof v === 'string') push(v);
+                }
+                if (Array.isArray(o)) {
+                    for (const it of o) if (typeof it === 'string') push(it);
+                }
+                return false;
+            });
+
+            const clean = candidates
+                .map(s => String(s))
+                .filter(s => !/filester\.me\/api\//i.test(s))
+                .filter(s => !/filester\.me\/(css|js)\//i.test(s));
+
+            if (!clean.length) return null;
+
+            const score = (s) => {
+                let sc = 0;
+                // Strongly prefer CDN /v/ stream URLs.
+                if (/https?:\/\/cache\d+\.filester\.me\/v\//i.test(s)) sc += 200;
+                else if (/cache\d+\.filester\.me/i.test(s)) sc += 160;
+                if (/\/v\//i.test(s)) sc += 80;
+                if (/\.filester\.me\//i.test(s)) sc += 10;
+                // De-prioritize HTML view tokens (/d/).
+                if (/\/d\//i.test(s)) sc -= 25;
+                if (/\.mp4(\?|$)/i.test(s)) sc += 2;
+                return sc;
+            };
+
+            clean.sort((a, b) => score(b) - score(a));
+            return clean[0];
+        };
+
+        const pickName = (obj) => {
+            const v = deepFindValueByKeys(obj, ['filename', 'file_name', 'name', 'original_name', 'originalName', 'title']);
+            if (typeof v === 'string' && v.trim()) return v.trim();
+            return null;
+        };
+
+        const pickSize = (obj) => {
+            const v = deepFindValueByKeys(obj, ['size', 'bytes', 'file_size', 'fileSize', 'length']);
+            const n = Number(v);
+            return Number.isFinite(n) ? n : 0;
+        };
+
+        let nameHint = null;
+        let sizeHint = 0;
+        let relViewPath = null;
+        let streamUrlImmediate = null;
+
+        const filesterExtFromCt = (ct) => {
+            const t = String(ct || '').toLowerCase();
+            if (t.includes('video/mp4')) return 'mp4';
+            if (t.includes('video/webm')) return 'webm';
+            if (t.includes('image/jpeg') || t.includes('image/jpg')) return 'jpg';
+            if (t.includes('image/png')) return 'png';
+            if (t.includes('image/gif')) return 'gif';
+            if (t.includes('application/zip')) return 'zip';
+            if (t.includes('application/x-7z-compressed')) return '7z';
+            if (t.includes('application/x-rar') || t.includes('application/vnd.rar')) return 'rar';
+            return 'bin';
+        };
+
+        const filesterParseViewMeta = (html) => {
+            const out = { fileName: '', fileType: '' };
+            const s = String(html || '');
+            try {
+                // Prefer JSON-style double-quoted assignment: window.fileName = "..."
+                const m1 = /window\.fileName\s*=\s*("([^"\\]|\\.)*")\s*;?/m.exec(s);
+                if (m1 && m1[1]) out.fileName = JSON.parse(m1[1]);
+            } catch (e) {}
+            try {
+                // Fallback: single-quoted assignment: window.fileName = '...'
+                if (!out.fileName) {
+                    const m1b = /window\.fileName\s*=\s*'([^'\\]*(?:\\.[^'\\]*)*)'\s*;?/m.exec(s);
+                    if (m1b && m1b[1]) out.fileName = String(m1b[1]).replace(/\\'/g, "'").replace(/\\n/g, "\n");
+                }
+            } catch (e) {}
+            try {
+                const m2 = /window\.fileType\s*=\s*("([^"\\]|\\.)*")\s*;?/m.exec(s);
+                if (m2 && m2[1]) out.fileType = JSON.parse(m2[1]);
+            } catch (e) {}
+            try {
+                if (!out.fileType) {
+                    const m2b = /window\.fileType\s*=\s*'([^'\\]*(?:\\.[^'\\]*)*)'\s*;?/m.exec(s);
+                    if (m2b && m2b[1]) out.fileType = String(m2b[1]).replace(/\\'/g, "'").replace(/\\n/g, "\n");
+                }
+            } catch (e) {}
+            return out;
+        };
+
+
+
+        const filesterNormalizeFilename = (s) => {
+            let name = String(s || '').trim();
+            if (!name) return '';
+
+            // If UTF-8 bytes were interpreted as Latin-1 (common in Chrome/Tampermonkey),
+            // decode it back to proper UTF-8.
+            try {
+                let hasHigh = false;
+                let allByte = true;
+                for (let i = 0; i < name.length; i++) {
+                    const c = name.charCodeAt(i);
+                    if (c > 255) { allByte = false; break; }
+                    if (c >= 128) hasHigh = true;
+                }
+                if (allByte && hasHigh && typeof TextDecoder !== 'undefined') {
+                    const bytes = new Uint8Array(name.length);
+                    for (let i = 0; i < name.length; i++) bytes[i] = name.charCodeAt(i) & 0xFF;
+                    const decoded = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+                    if (decoded && decoded !== name) name = decoded;
+                }
+            } catch (e) {}
+
+            // Strip control chars (Windows will refuse these in filenames; mojibake often introduces them)
+            name = name.replace(/[\u0000-\u001F\u007F\u0080-\u009F]/g, '').trim();
+            return name;
+        };
+
+const filesterParseDispositionFilename = (headersRaw) => {
+            try {
+                const h = String(headersRaw || '');
+                const mLine = /content-disposition:\s*([^\r\n]+)/i.exec(h);
+                if (!mLine || !mLine[1]) return '';
+                const v = String(mLine[1] || '');
+
+                // RFC5987: filename*=UTF-8''...
+                let m = /filename\*\s*=\s*([^;]+)/i.exec(v);
+                if (m && m[1]) {
+                    let val = String(m[1]).trim();
+                    val = val.replace(/^"(.*)"$/, '$1').replace(/^'(.*)'$/, '$1');
+
+                    const mEnc = /^([^']*)''(.*)$/.exec(val);
+                    if (mEnc) {
+                        let data = String(mEnc[2] || '').trim();
+                        try {
+                            data = decodeURIComponent(data.replace(/\+/g, '%20'));
+                        } catch (e) {
+                            // best-effort
+                        }
+                        if (data) return filesterNormalizeFilename(data);
+                    } else {
+                        try {
+                            const decoded = decodeURIComponent(val.replace(/\+/g, '%20'));
+                            if (decoded) return filesterNormalizeFilename(decoded);
+                        } catch (e) {}
+                        if (val) return filesterNormalizeFilename(val);
+                    }
+                }
+
+                // Basic: filename="..."
+                m = /filename\s*=\s*([^;]+)/i.exec(v);
+                if (m && m[1]) {
+                    let val = String(m[1]).trim();
+                    val = val.replace(/^"(.*)"$/, '$1').replace(/^'(.*)'$/, '$1');
+                    val = val.replace(/\\(.)/g, '$1');
+                    return filesterNormalizeFilename(val);
+                }
+            } catch (e) {}
+            return '';
+        };
+
+
+
+        const filesterProbe = async (probeUrl) => {
+            try {
+                const r = await http.base(
+                    'GET',
+                    probeUrl,
+                    { onResponseHeadersReceieved: () => {} },
+                    { Range: 'bytes=0-0', Referer: `${apiBase}/`, __xfpd_withCredentials: true },
+                    null,
+                    'text',
+                );
+                const status = Number(r && r.status) || 0;
+                const headers = String((r && r.responseHeaders) || '');
+                const dispName = filesterParseDispositionFilename(headers);
+                const mCt = /content-type:\s*([^\r\n]+)/i.exec(headers);
+                const ct = (mCt && mCt[1]) ? mCt[1].trim() : '';
+                const mCr = /content-range:\s*bytes\s+\d+-\d+\/(\d+)/i.exec(headers);
+                const mCl = /content-length:\s*(\d+)/i.exec(headers);
+                const size = mCr && mCr[1] ? Number(mCr[1]) : (mCl && mCl[1] ? Number(mCl[1]) : 0);
+                const isHtmlOrJson = /text\/html|application\/xhtml\+xml|application\/json/i.test(ct);
+                const ok = status >= 200 && status < 400 && !isHtmlOrJson;
+                return { ok, status, headers, contentType: ct, size: Number.isFinite(size) ? size : 0, fileName: dispName || '' };
+            } catch (e) {
+                return { ok: false, status: 0, headers: '', contentType: '', size: 0 };
+            }
+        };
+
+        const filesterResolveDownloadToken = async (tokenUrl) => {
+            try {
+                const ref = `${apiBase}/d/${slug}`;
+
+                const normalizeMaybeUrl = (v) => {
+                    try {
+                        if (!v) return '';
+                        const s = String(v).trim();
+                        if (!s) return '';
+                        if (s.startsWith('/')) return new URL(s, apiBase).href;
+                        if (/^https?:\/\//i.test(s)) return s;
+                        return '';
+                    } catch (e) {
+                        return '';
+                    }
+                };
+
+                // Phase 1: range request (follows redirects) to capture finalUrl without downloading the whole file.
+                const r1 = await http.base(
+                    'GET',
+                    tokenUrl,
+                    {},
+                    { Range: 'bytes=0-0', Referer: ref, __xfpd_withCredentials: true },
+                    null,
+                    'text',
+                );
+
+                const headers1 = String((r1 && r1.responseHeaders) || '');
+                const fu1 = String((r1 && r1.finalUrl) || '');
+
+                const mLoc1 = /(?:^|\r?\n)location:\s*([^\r\n]+)/i.exec(headers1);
+                const loc1Abs = normalizeMaybeUrl(mLoc1 && mLoc1[1] ? mLoc1[1] : '');
+                if (loc1Abs && /\/v\//i.test(loc1Abs)) return loc1Abs;
+                if (fu1 && /\/v\//i.test(fu1)) return fu1;
+
+                // If this looks like HTML, fetch the full HTML page (small) and extract the /v/ link.
+                const mCt1 = /content-type:\s*([^\r\n]+)/i.exec(headers1);
+                const ct1 = (mCt1 && mCt1[1]) ? String(mCt1[1]).trim() : '';
+                const isHtml = /text\/html|application\/xhtml\+xml/i.test(ct1);
+
+                if (isHtml) {
+                    const r2 = await http.base(
+                        'GET',
+                        tokenUrl,
+                        {},
+                        { Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8', Referer: ref, __xfpd_withCredentials: true },
+                        null,
+                        'text',
+                    );
+
+                    const headers2 = String((r2 && r2.responseHeaders) || '');
+                    const fu2 = String((r2 && r2.finalUrl) || '');
+
+                    const mLoc2 = /(?:^|\r?\n)location:\s*([^\r\n]+)/i.exec(headers2);
+                    const loc2Abs = normalizeMaybeUrl(mLoc2 && mLoc2[1] ? mLoc2[1] : '');
+                    if (loc2Abs && /\/v\//i.test(loc2Abs)) return loc2Abs;
+                    if (fu2 && /\/v\//i.test(fu2)) return fu2;
+
+                    const body = String((r2 && r2.source) || '');
+
+                    const mFull = /(https?:\/\/cache\d+\.filester\.me\/v\/[^\"'<>\s]+)/i.exec(body);
+                    if (mFull && mFull[1]) return String(mFull[1]).trim();
+
+                    const mRel = /[\"'](\/v\/[^\"'<>\s]+)[\"']/i.exec(body);
+                    if (mRel && mRel[1]) return new URL(String(mRel[1]), apiBase).href;
+                }
+
+                return null;
+            } catch (e) {
+                return null;
+            }
+        };
+
+        try {
+            if (progressCB) progressCB('[Filester] Fetching metadata...');
+            const viewRes = await http.base(
+                'POST',
+                `${apiBase}/api/public/view`,
+                {},
+                mkHeaders(),
+                JSON.stringify({ file_slug: slug }),
+                'text',
+            );
+            const viewJson = safeJson(viewRes && viewRes.source);
+            if (viewJson) {
+                nameHint = pickName(viewJson) || nameHint;
+                sizeHint = pickSize(viewJson) || sizeHint;
+                try {
+                    const relView = deepFindValueByKeys(viewJson, ['view_url', 'viewUrl', 'view']);
+                    if (typeof relView === 'string' && relView.trim()) {
+                        const s = String(relView).trim();
+                        if (s.startsWith('/v/')) {
+                            relViewPath = s;
+                        } else if (s.startsWith('v/')) {
+                            relViewPath = '/' + s;
+                        } else if (/^https?:\/\//i.test(s)) {
+                            try {
+                                const u0 = new URL(s);
+                                if (/^\/v\//i.test(String(u0.pathname || ''))) {
+                                    relViewPath = String(u0.pathname || '') + String(u0.search || '');
+                                }
+                                // If the API already gave us a cache /v/ URL, keep it as an immediate candidate.
+                                if (!streamUrlImmediate && /https?:\/\/cache6\.filester\.me\/v\//i.test(s)) {
+                                    streamUrlImmediate = s;
+                                }
+                            } catch (e) {}
+                        }
+                    }
+                } catch (e) {}
+            }
+        } catch (e) {}
+
+        // Try to extract the real filename (window.fileName = "...") from the HTML view.
+// Some Filester API responses don't include the filename, but the HTML view does.
+try {
+    // First try the slug page (it may redirect to /v/... or even directly to a cacheX /v/ stream).
+    // We use it for both filename hints and to discover the real /v/ path when the public API is blocked.
+    if (!nameHint || (!relViewPath && !streamUrlImmediate)) {
+        const slugPageUrl = `${apiBase}/d/${slug}`;
+        const htmlRes0 = await http.base(
+            'GET',
+            slugPageUrl,
+            {},
+            { Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8', __xfpd_withCredentials: true },
+            {},
+            'text',
+        );
+        const html0 = String((htmlRes0 && htmlRes0.source) || '');
+        const meta0 = filesterParseViewMeta(html0);
+        if (meta0 && meta0.fileName) nameHint = String(meta0.fileName);
+
+        // If this request ended up at a /v/ URL, capture it.
+        try {
+            const fu0 = String((htmlRes0 && htmlRes0.finalUrl) || '');
+            if (fu0 && /\/v\//i.test(fu0)) {
+                if (!streamUrlImmediate && /https?:\/\/cache6\.filester\.me\/v\//i.test(fu0)) {
+                    streamUrlImmediate = fu0;
+                }
+                if (!relViewPath) {
+                    try {
+                        const u1 = new URL(fu0);
+                        if (/^\/v\//i.test(String(u1.pathname || ''))) {
+                            relViewPath = String(u1.pathname || '') + String(u1.search || '');
+                        }
+                    } catch (e) {}
+                }
+            }
+        } catch (e) {}
+
+        // Fallback: extract a /v/... token from the HTML itself.
+        if (!streamUrlImmediate) {
+            try {
+                const mFull = /(https?:\/\/cache\d+\.filester\.me\/v\/[^\s"'<>]+)/i.exec(html0);
+                if (mFull && mFull[1] && /https?:\/\/cache6\.filester\.me\/v\//i.test(mFull[1])) streamUrlImmediate = mFull[1];
+            } catch (e) {}
+        }
+        if (!relViewPath) {
+            try {
+                const mRel = /["'](\/v\/[^"'<>\s]+)["']/i.exec(html0) || /(\/v\/[0-9a-f]{16,}[^"'<>\s]*)/i.exec(html0);
+                if (mRel && mRel[1] && String(mRel[1]).startsWith('/v/')) relViewPath = mRel[1];
+            } catch (e) {}
+        }
+    }
+
+    // If still missing, try the explicit view_url returned by the API.
+    if (!nameHint && relViewPath && /^\/v\//i.test(String(relViewPath))) {
+        const viewPageUrl = `${apiBase}${relViewPath}`;
+        const htmlRes = await http.base(
+            'GET',
+            viewPageUrl,
+            {},
+            { Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8', __xfpd_withCredentials: true },
+            {},
+            'text',
+        );
+        const html = String((htmlRes && htmlRes.source) || '');
+        const meta = filesterParseViewMeta(html);
+        if (meta && meta.fileName) nameHint = filesterNormalizeFilename(String(meta.fileName));
+    }
+} catch (e) {}
+
+                // Download API can return a /d/<token> which then redirects to the real /v/... stream URL.
+        // Use it as a fallback to discover the stream path when /api/public/view doesn't provide it.
+        try {
+            if (!streamUrlImmediate && !relViewPath) {
+                if (progressCB) progressCB('[Filester] Resolving download token...');
+                const dlRes0 = await http.base(
+                    'POST',
+                    `${apiBase}/api/public/download`,
+                    {},
+                    mkHeaders(),
+                    JSON.stringify({ file_slug: slug }),
+                    'text',
+                );
+
+                const src0 = String((dlRes0 && dlRes0.source) || '');
+                const dlJson0 = safeJson(src0);
+
+                let tokenUrl = null;
+                try {
+                    const rel = dlJson0 ? deepFindValueByKeys(dlJson0, ['download_url', 'downloadUrl', 'url']) : null;
+                    if (typeof rel === 'string' && rel.trim()) tokenUrl = normalizeUrl(rel);
+                } catch (e) {}
+
+                if (!tokenUrl) {
+                    const m0 = /"download_url"\s*:\s*"([^"]+)"/i.exec(src0);
+                    if (m0 && m0[1]) tokenUrl = normalizeUrl(m0[1]);
+                }
+
+                if (tokenUrl) {
+                    // If the API returned a token (or /d/<token>), the actual stream is usually /v/<token> on cacheX.
+                    // Build relViewPath early so the probe loop can find a working cache host (cache6 preferred).
+                    try {
+                        let tokenStr = '';
+                        try {
+                            const tk = dlJson0 ? deepFindValueByKeys(dlJson0, ['token']) : null;
+                            if (typeof tk === 'string') tokenStr = String(tk).trim();
+                        } catch (e) {}
+                        if (!tokenStr) {
+                            const mTok = /\/d\/([^\/\?#]+)/i.exec(String(tokenUrl || ''));
+                            if (mTok && mTok[1]) tokenStr = String(mTok[1]).trim();
+                        }
+                        if (tokenStr && !relViewPath) {
+                            if (tokenStr.startsWith('/v/')) relViewPath = tokenStr;
+                            else if (tokenStr.startsWith('v/')) relViewPath = '/' + tokenStr;
+                            else if (tokenStr.startsWith('/d/')) relViewPath = tokenStr.replace(/^\/d\//i, '/v/');
+                            else if (tokenStr.startsWith('d/')) relViewPath = '/' + tokenStr.replace(/^d\//i, 'v/');
+                            else relViewPath = `/v/${tokenStr}`;
+                        }
+                    } catch (e) {}
+
+                    const sUrl = await filesterResolveDownloadToken(tokenUrl);
+                    if (sUrl) {
+                        try {
+                            const u2 = new URL(sUrl);
+                            if (/^\/v\//i.test(String(u2.pathname || ''))) {
+                                relViewPath = String(u2.pathname || '') + String(u2.search || '');
+                                if (/https?:\/\/cache6\.filester\.me\/v\//i.test(sUrl)) streamUrlImmediate = String(sUrl);
+                            }
+                        } catch (e) {
+                            if (String(sUrl).startsWith('/v/')) relViewPath = String(sUrl);
+                        }
+                    }
+                }
+            }
+        } catch (e) {}
+
+// If we already discovered a cache /v/ stream URL from redirects or HTML, prefer it.
+        try {
+            if (streamUrlImmediate) {
+                if (progressCB) progressCB('[Filester] Probing discovered stream URL...');
+                const p0 = await filesterProbe(streamUrlImmediate);
+                if (p0 && p0.ok) {
+                    const streamUrl = String(streamUrlImmediate);
+                    const streamCt = String(p0.contentType || '');
+                    const streamSize = Number(p0.size || 0) || 0;
+                    const streamHdrName = String((p0 && p0.fileName) || '');
+
+                    try { filesterSlugByUrl.set(String(streamUrl), String(slug)); } catch (e) {}
+                    try {
+                        const ref0 = (relViewPath ? `${apiBase}${relViewPath}` : `${apiBase}/d/${slug}`);
+                        if (ref0 && String(ref0).startsWith('http')) {
+                            filesterRefByUrl.set(String(streamUrl), String(ref0));
+                            filesterRefByUrl.set(String(url), String(ref0));
+                            filesterRefByUrl.set(`${apiBase}/d/${slug}`, String(ref0));
+                        }
+                    } catch (e) {}
+                    try { if (!nameHint && streamHdrName) nameHint = String(streamHdrName); } catch (e) {}
+
+                    const ext = filesterExtFromCt(streamCt);
+                    let finalName = '';
+                    try { if (nameHint) finalName = String(nameHint); } catch (e) {}
+                    if (!finalName) finalName = `Filester_${slug}.${ext || 'bin'}`;
+                    try {
+                        const hasExt = /\.[A-Za-z0-9]{1,8}$/.test(String(finalName || ''));
+                        if (!hasExt && ext) finalName = `${finalName}.${ext}`;
+                    } catch (e) {}
+
+                    try {
+                        filesterNameBySlug.set(String(slug), String(finalName));
+                        filesterNameByUrl.set(String(streamUrl), String(finalName));
+                        try { filesterNameByUrl.set(String(url), String(finalName)); } catch (e) {}
+                        try { filesterNameByUrl.set(`${apiBase}/d/${slug}`, String(finalName)); } catch (e) {}
+                        try { if (relViewPath) filesterNameByUrl.set(`${apiBase}${relViewPath}`, String(finalName)); } catch (e) {}
+                    } catch (e) {}
+                    if (streamSize) {
+                        try {
+                            filesterSizeBySlug.set(String(slug), Number(streamSize));
+                            filesterSizeByUrl.set(String(streamUrl), Number(streamSize));
+                        } catch (e) {}
+                    }
+
+                    return streamUrl;
+                }
+            }
+        } catch (e) {}
+
+// Prefer the cache /v/ stream URL. The /d/ token often requires a Filester referer (otherwise it returns not_whitelisted).
+        try {
+            if (relViewPath && /^\/v\//i.test(String(relViewPath))) {
+                if (progressCB) progressCB('[Filester] Probing cache stream URL...');
+                const bases = [];
+                // Chrome Tampermonkey downloads are more reliable when starting from filester.me (redirects preserve a Filester referrer).
+                if (!isFF) bases.push(apiBase);
+                bases.push('https://cache6.filester.me');
+                for (let i = 1; i <= 8; i++) if (i !== 6) bases.push(`https://cache${i}.filester.me`);
+                if (isFF) bases.push(apiBase);
+
+                let streamUrl = null;
+                let streamCt = '';
+                let streamSize = 0;
+                let streamHdrName = '';
+
+                for (const base of bases) {
+                    const cand = String(base).replace(/\/$/, '') + String(relViewPath);
+                    const p = await filesterProbe(cand);
+                    if (p && p.ok) {
+                        streamUrl = cand;
+                        streamCt = String(p.contentType || '');
+                        streamSize = Number(p.size || 0) || 0;
+                        streamHdrName = String((p && p.fileName) || '');
+                        break;
+                    }
+                }
+
+                if (streamUrl) {
+                    try { filesterSlugByUrl.set(String(streamUrl), String(slug)); } catch (e) {}
+                    try {
+                        const ref0 = (relViewPath ? `${apiBase}${relViewPath}` : `${apiBase}/d/${slug}`);
+                        if (ref0 && String(ref0).startsWith('http')) {
+                            filesterRefByUrl.set(String(streamUrl), String(ref0));
+                            filesterRefByUrl.set(String(url), String(ref0));
+                            filesterRefByUrl.set(`${apiBase}/d/${slug}`, String(ref0));
+                        }
+                    } catch (e) {}
+                    try { if (!nameHint && streamHdrName) nameHint = String(streamHdrName); } catch (e) {}
+                    const ext = filesterExtFromCt(streamCt);
+                    let finalName = '';
+                    try { if (nameHint) finalName = String(nameHint); } catch (e) {}
+                    if (!finalName) finalName = `Filester_${slug}.${ext || 'bin'}`;
+                    try {
+                        const hasExt = /\.[A-Za-z0-9]{1,8}$/.test(String(finalName || ''));
+                        if (!hasExt && ext) finalName = `${finalName}.${ext}`;
+                    } catch (e) {}
+
+                    try {
+                        filesterNameBySlug.set(String(slug), String(finalName));
+                        filesterNameByUrl.set(String(streamUrl), String(finalName));
+                    try { filesterNameByUrl.set(String(url), String(finalName)); } catch (e) {}
+                    try { filesterNameByUrl.set(`${apiBase}/d/${slug}`, String(finalName)); } catch (e) {}
+                    try { if (relViewPath) filesterNameByUrl.set(`${apiBase}${relViewPath}`, String(finalName)); } catch (e) {}
+
+                    } catch (e) {}
+                    if (streamSize) {
+                        try {
+                            filesterSizeBySlug.set(String(slug), Number(streamSize));
+                            filesterSizeByUrl.set(String(streamUrl), Number(streamSize));
+                        } catch (e) {}
+                    }
+
+                    return streamUrl;
+                }
+            }
+        } catch (e) {}
+
+        try {
+            if (progressCB) progressCB('[Filester] Resolving download URL...');
+            const dlRes = await http.base(
+                'POST',
+                `${apiBase}/api/public/download`,
+                {},
+                mkHeaders(),
+                JSON.stringify({ file_slug: slug }),
+                'text',
+            );
+
+            const src = String((dlRes && dlRes.source) || '');
+            const dlJson = safeJson(src);
+            let dlUrl = null;
+
+            if (dlJson) {
+                dlUrl = pickBestUrl(dlJson);
+            }
+            if (dlJson && !dlUrl) {
+                try {
+                    const rel = deepFindValueByKeys(dlJson, ['download_url', 'downloadUrl', 'url']);
+                    if (typeof rel === 'string' && rel.startsWith('/')) dlUrl = `${apiBase}${rel}`;
+                } catch (e) {}
+            }
+
+            if (dlJson && !dlUrl) {
+                const waitRaw = deepFindValueByKeys(dlJson, ['wait', 'wait_time', 'waitSeconds', 'wait_seconds', 'seconds']);
+                const waitSec = Number(waitRaw);
+                if (Number.isFinite(waitSec) && waitSec > 0 && waitSec <= 300) {
+                    try {
+                        if (progressCB) progressCB(`[Filester] Waiting ${Math.ceil(waitSec)}s...`);
+                    } catch (e) {}
+                    await new Promise(r => setTimeout(r, Math.ceil(waitSec) * 1000));
+                    const dlRes2 = await http.base(
+                        'POST',
+                        `${apiBase}/api/public/download`,
+                        {},
+                        mkHeaders(),
+                        JSON.stringify({ file_slug: slug }),
+                        'text',
+                    );
+                    const src2 = String((dlRes2 && dlRes2.source) || '');
+                    const dlJson2 = safeJson(src2);
+                    if (dlJson2) dlUrl = pickBestUrl(dlJson2);
+                    if (!dlUrl) {
+                        const m2 = /(https?:\/\/[^\s"'<>]+)/i.exec(src2);
+                        if (m2 && m2[1]) dlUrl = m2[1];
+                    }
+                }
+            }
+
+            if (!dlUrl) {
+                const m = /(https?:\/\/[^\s"'<>]+)/i.exec(src);
+                if (m && m[1]) dlUrl = m[1];
+            }
+
+            if (dlUrl) {
+                try { filesterSlugByUrl.set(String(dlUrl), String(slug)); } catch (e) {}
+
+                if (nameHint) {
+                    filesterNameBySlug.set(String(slug), String(nameHint));
+                    filesterNameByUrl.set(String(dlUrl), String(nameHint));
+                }
+                if (sizeHint) {
+                    filesterSizeBySlug.set(String(slug), Number(sizeHint));
+                    filesterSizeByUrl.set(String(dlUrl), Number(sizeHint));
+                }
+                return dlUrl;
+            }
+        } catch (e) {}
+
+        return null;
+    },
+],
     [
         [/m\.box\.com\//],
         async (url, http) => {
@@ -3815,7 +5441,6 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
     let completed = 0;
     const zip = new JSZip();
     let zipFileCount = 0;
-
     let resolved = [];
 
     const statusLabel = statusUI.status;
@@ -3844,7 +5469,55 @@ const downloadPost = async (parsedPost, parsedHosts, enabledHostsCB, resolvers, 
 
     h.ui.setText(statusLabel, 'Resolving...');
 
-    log.post.info(postId, '::Url resolution started::', postNumber);
+
+
+// Bunkr: capture filename hints from visible link text (works even when CF blocks /v/ pages).
+try {
+    const cc = parsedPost && parsedPost.contentContainer;
+    if (cc && cc.querySelectorAll) {
+        const strip = (s) => String(s || '').split('#')[0].split('?')[0];
+        const normUrl = (u) => {
+            u = String(u || '').replace(/&amp;/g, '&').trim();
+            u = u.split(/[\s"'<>]/)[0].trim();
+            if (u && !/^https?:\/\//i.test(u)) u = `https://${u}`;
+            if (u.endsWith('/')) u = u.slice(0, -1);
+            return u;
+        };
+        const extractName = (t) => {
+            let s = String(t || '').replace(/\s+/g, ' ').trim();
+            if (!s) return '';
+            // If link text is itself a URL, it isn't a filename hint.
+            if (/^https?:\/\//i.test(s)) return '';
+            // Whole string looks like a filename (keep spaces).
+            if (/\.[A-Za-z0-9]{1,8}$/.test(s) && s.length <= 200) return s;
+            // Otherwise pick the last token-like filename.
+            const m = s.match(/[^\\/:*?"<>|\s]+\.[A-Za-z0-9]{1,8}/g);
+            if (m && m.length) {
+                const cand = m[m.length - 1];
+                if (cand && cand.length <= 200) return cand;
+            }
+            return '';
+        };
+
+        cc.querySelectorAll('a[href]').forEach(a => {
+            const href0 = normUrl(a.getAttribute('href'));
+            if (!href0) return;
+
+            // only for bunkr-ish links (skip direct scdn links)
+            if (!/bunkrr?r?\./i.test(href0)) return;
+            if (/scdn\.st\//i.test(href0)) return;
+
+            const nm = extractName(a.textContent || '');
+            if (!nm) return;
+            if (xfpdLooksLikeCfFilenameHint(nm)) return;
+
+            bunkrNameByUrl.set(href0, nm);
+            bunkrNameByUrl.set(strip(href0), nm);
+        });
+    }
+} catch (e) {}
+
+log.post.info(postId, '::Url resolution started::', postNumber);
 
     for (const host of enabledHosts.filter(host => host.resources.length)) {
         const resources = host.resources;
@@ -3920,6 +5593,8 @@ r = await h.promise(resolve => resolve(resolverCB(resource, h.http, passwords, p
                             host,
                             original: resource,
                             folderName: url.folderName,
+                            forceUnzipped: false, // Filester can be zipped when using blob; DIRECT always saves outside ZIP
+                            forceDirect: false,
                         });
                         log.post.info(postId, `::Resolved::: ${url.url}`, postNumber);
                     } else {
@@ -3928,6 +5603,8 @@ r = await h.promise(resolve => resolve(resolverCB(resource, h.http, passwords, p
                             host,
                             original: resource,
                             folderName,
+                            forceUnzipped: false, // Filester can be zipped when using blob; DIRECT always saves outside ZIP
+                            forceDirect: false,
                         });
                         log.post.info(postId, `::Resolved::: ${url}`, postNumber);
                     }
@@ -3966,6 +5643,19 @@ r = await h.promise(resolve => resolve(resolverCB(resource, h.http, passwords, p
     // Windows-safe sanitizers (used for folder/zip names). Kept local to downloadPost so it has access to settings.
     const sanitizeWinSegment = (seg, fallback = 'file') => {
         let s = String(seg ?? '').trim();
+
+
+        // If emojis are disabled, strip emoji/pictographs for consistent behavior across hosts.
+        if (settings?.naming?.allowEmojis === false) {
+            try {
+                s = s.replace(/\p{Extended_Pictographic}/gu, '');
+            } catch (e) {
+                // Fallback: strip surrogate pairs (covers most emoji)
+                s = s.replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, '');
+            }
+            // Remove variation selectors + ZWJ
+            s = s.replace(/[\uFE0E\uFE0F\u200D]/g, '');
+        }
 
         // Replace Windows-invalid chars and control chars.
         const sub = (settings?.naming?.invalidCharSubstitute ?? '-');
@@ -4191,35 +5881,37 @@ if (tmp.length) {
                 if (!turboId) return null;
 
                 const embedUrl = `https://turbo.cr/embed/${turboId}`;
-                const signUrls = [
-                    `https://turbo.cr/api/sign?v=${encodeURIComponent(turboId)}`,
-                    `https://turbo.cr/sign?v=${encodeURIComponent(turboId)}`,
-                ];
-
                 const keepFn = turboExtractFn(currentUrl) || '';
 
-                for (const sUrl of signUrls) {
-                    const r = await gmGetTextWithHeaders(sUrl, { Referer: embedUrl });
-                    if (!r || !r.ok || !r.text) continue;
-
-                    let j = null;
-                    try { j = JSON.parse(r.text); } catch (e) { j = null; }
-                    if (!j || !j.url) continue;
-
-                    let signed = j.url;
-                    const name = (j.original_filename || keepFn || '').toString();
-                    if (signed && name && !/[?&]fn=/i.test(String(signed))) {
-                        const enc = encodeURIComponent(String(name)).replace(/%20/g, '+');
-                        signed += (signed.includes('?') ? '&' : '?') + 'fn=' + enc;
+                try {
+                    const j = await xfpdTurboFetchSignJsonWithTimeout(turboId, embedUrl);
+                    if (j && j.url) {
+                        let signed = j.url;
+                        const name = (j.original_filename || keepFn || '').toString();
+                        if (signed && name && !/[?&]fn=/i.test(String(signed))) {
+                            const enc = encodeURIComponent(String(name)).replace(/%20/g, '+');
+                            signed += (signed.includes('?') ? '&' : '?') + 'fn=' + enc;
+                        }
+                        try { turboIdBySignedUrl.set(String(signed), String(turboId)); } catch (e) {}
+                        return signed;
                     }
+                } catch (e) {}
 
-                    try { turboIdBySignedUrl.set(String(signed), String(turboId)); } catch (e) {}
-                    return signed;
-                }
                 return null;
             };
             const isGoFileUrl = u => /gofile\.io/i.test(String(u || ''));
-            const isPixeldrainUrl = u => /pixeldrain\.com/i.test(String(u || ''));
+            const isPixeldrainUrl = u => /(?:pixeldrain\.com|pixeldrain\.net|pixeldra\.in)/i.test(String(u || ''));
+            const isImagebamCdnUrl = u => /https?:\/\/(?:images|thumbs)\d+\.imagebam\.com\//i.test(String(u || ''));
+            const imagebamRefererForCdn = u => {
+                try {
+                    const uu = new URL(String(u || ''), location.origin);
+                    const base = (uu.pathname || '').split('/').pop() || '';
+                    const id = base.replace(/\.[a-z0-9]+$/i, '');
+                    return id ? `https://www.imagebam.com/view/${id}` : 'https://www.imagebam.com/';
+                } catch (e) {
+                    return 'https://www.imagebam.com/';
+                }
+            };
             const gofileWarmupAttempted = new Set();
             const CYBERDROP_WARMUP_MS = 1500;
 
@@ -4231,6 +5923,18 @@ if (tmp.length) {
             const sanitizeWinSegment = (s) => {
                 const sub = (settings && settings.naming && settings.naming.invalidCharSubstitute) ? settings.naming.invalidCharSubstitute : '_';
                 let out = String(s || '');
+
+                // If emojis are disabled, strip emoji/pictographs for consistent behavior across hosts.
+                if (settings?.naming?.allowEmojis === false) {
+                    try {
+                        out = out.replace(/\p{Extended_Pictographic}/gu, '');
+                    } catch (e) {
+                        // Fallback: strip surrogate pairs (covers most emoji)
+                        out = out.replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, '');
+                    }
+                    // Remove variation selectors + ZWJ
+                    out = out.replace(/[\uFE0E\uFE0F\u200D]/g, '');
+                }
                 out = out.replace(WIN_ILLEGAL_RE, sub);
                 // Remove remaining control chars / oddities
                 out = out.replace(/[\x00-\x08\x0E-\x1F\x7F]/g, '');
@@ -4309,9 +6013,20 @@ if (tmp.length) {
 
                 try {
                     if (isPixeldrain) {
-                        const mFile = /pixeldrain\.com\/api\/file\/([^\/?#]+)/i.exec(dlUrl || '');
+                        const mFile = /(?:pixeldrain\.com|pixeldrain\.net|pixeldra\.in)\/api\/file\/([^\/?#]+)/i.exec(dlUrl || '');
                         if (mFile && mFile[1]) {
-                            const infoUrl = `https://pixeldrain.com/api/file/${mFile[1]}/info`;
+                            const pdOrigin = (() => {
+                                try {
+                                    const uu = new URL(dlUrl || '', location.origin);
+                                    const host = String(uu.hostname || '').toLowerCase();
+                                    if (host.endsWith('pixeldrain.net')) return 'https://pixeldrain.net';
+                                    if (host.endsWith('pixeldra.in')) return 'https://pixeldra.in';
+                                    return 'https://pixeldrain.com';
+                                } catch (e) {
+                                    return 'https://pixeldrain.com';
+                                }
+                            })();
+                            const infoUrl = `${pdOrigin}/api/file/${mFile[1]}/info`;
                             const r = await gmGetText(infoUrl, reflink);
                             if (r.ok && r.text) {
                                 try {
@@ -4324,40 +6039,317 @@ if (tmp.length) {
                         }
                     }
 
-                    // Fallback HEAD (works for GoFile store links and Pixeldrain list ZIPs)
-                    const hRes = await gmHead(dlUrl, reflink);
-                    meta.status = hRes.status || 0;
-                    meta.headers = hRes.headers || '';
-                    meta.contentType = headerValue(meta.headers, 'content-type');
-                    const cl = headerValue(meta.headers, 'content-length');
-                    if (!meta.size && cl) meta.size = extractNum(cl);
-                    if (!meta.filename) {
-                        const cdName = parseDispositionFilename(meta.headers);
-                        if (cdName) meta.filename = cdName;
+
+                    // Filester hints (API gives name/size but the CDN URL may not include them)
+                    try {
+                        if (!meta.size) {
+                        let hintedSize = 0;
+                        try {
+                            // Prefer slug-based hints (from /f/ album page) when available.
+                            const s0 = String(filesterSlugByUrl.get(String(dlUrl)) || '');
+                            hintedSize = Number(filesterSizeBySlug.get(s0) || filesterSizeByUrl.get(String(dlUrl)) || 0) || 0;
+                        } catch (e) { hintedSize = 0; }
+                        if (hintedSize) meta.size = extractNum(hintedSize);
                     }
-                } catch (e) {}
+                    if (!meta.filename) {
+                        let hintedName = '';
+                        try {
+                            const s0 = String(filesterSlugByUrl.get(String(dlUrl)) || '');
+                            hintedName = String(filesterNameBySlug.get(s0) || filesterNameByUrl.get(String(dlUrl)) || '');
+                        } catch (e) { hintedName = ''; }
+                        if (hintedName) meta.filename = String(hintedName);
+                    }
+                    } catch (e) {}
+
+                    // Fallback HEAD (works for GoFile store links and Pixeldrain list ZIPs)
+                    const nameHasExt = /\.[A-Za-z0-9]{1,8}$/.test(String(meta.filename || ''));
+                    const isFilester = /(?:^https?:\/\/)?(?:cache\d+\.)?filester\.me\/v\//i.test(String(dlUrl || ''));
+                    const needHead = !!(isGoFile || isPixeldrain || (!isFilester && (!meta.size || !meta.filename || !nameHasExt)));
+                    if (needHead) {
+                        const hRes = await gmHead(dlUrl, reflink);
+                        meta.status = hRes.status || 0;
+                        meta.headers = hRes.headers || '';
+                        meta.contentType = headerValue(meta.headers, 'content-type');
+                        const cl = headerValue(meta.headers, 'content-length');
+                        if (!meta.size && cl) meta.size = extractNum(cl);
+                        if (!meta.filename) {
+                            const cdName = parseDispositionFilename(meta.headers);
+                            if (cdName) meta.filename = cdName;
+                        }
+                    }                } catch (e) {}
 
                 preflightMetaCache.set(key, meta);
                 return meta;
             };
 
-            const gofileWarmupOpenTab = warmUrl => {
+            // Filester album policy (location stays unchanged; this only decides ZIP vs DIRECT per file).
+            // Rules:
+            // - Zipped ON:
+            //   * If album contains images + other files:
+            //       - If total (all files) <= ~1.6GB AND all sizes are known -> ZIP all.
+            //       - Else -> ZIP images only, save the rest via DIRECT (outside ZIP).
+            //   * If album contains only non-image files:
+            //       - If total <= ~1.6GB AND all sizes are known -> ZIP all.
+            //       - Else -> DIRECT all (skip ZIP).
+            // - Zipped OFF:
+            //   * If album contains any non-image file (mixed OR video-only) -> DIRECT all.
+            //   * Images-only album keeps default behavior.
+
+            const FIL_IMG_EXTS = new Set(['.jpg','.jpeg','.png','.gif','.webp','.bmp','.avif','.tif','.tiff','.jxl','.heic','.heif']);
+            const FIL_VID_EXTS = new Set(['.mp4','.m4v','.webm','.mkv','.mov','.avi','.wmv','.flv','.ts','.m2ts','.mpg','.mpeg','.3gp']);
+
+            const filesterGuessExt = (s) => {
+                const t = String(s || '').trim();
+                const m = t.match(/\.([A-Za-z0-9]{1,8})(?=($|\?))/);
+                return m ? `.${String(m[1]).toLowerCase()}` : '';
+            };
+
+            const filesterSlugFromUrl = (u0) => {
                 try {
-                    const tab = GM_openInTab(warmUrl, { active: false, insert: true, setParent: true });
-                    if (tab && typeof tab.close === 'function') {
-                        setTimeout(() => {
-                            try { tab.close(); } catch (e) {}
-                        }, GOFILE_WARMUP_MS);
+                    const s = String(u0 || '');
+                    const mD = /\/d\/([^\/?#]+)/i.exec(s);
+                    if (mD && mD[1]) return String(mD[1]);
+                    // cacheN /v/ tokens -> map back to slug when known
+                    const s2 = String(filesterSlugByUrl.get(String(u0)) || '');
+                    if (s2) return s2;
+                } catch (e) {}
+                return '';
+            };
+
+            const filesterHintName = (u0) => {
+                try {
+                    const slug = filesterSlugFromUrl(u0);
+                    const v =
+                        (slug ? filesterNameBySlug.get(String(slug)) : '') ||
+                        filesterNameByUrl.get(String(u0)) ||
+                        '';
+                    return String(v || '').trim();
+                } catch (e) {
+                    return '';
+                }
+            };
+
+            const filesterHintSize = (u0) => {
+                try {
+                    const slug = filesterSlugFromUrl(u0);
+                    const v =
+                        (slug ? filesterSizeBySlug.get(String(slug)) : 0) ||
+                        filesterSizeByUrl.get(String(u0)) ||
+                        0;
+                    const n = Number(v);
+                    return Number.isFinite(n) && n > 0 ? n : 0;
+                } catch (e) {
+                    return 0;
+                }
+            };
+
+            const filesterClassify = (u0) => {
+                try {
+                    const hintedName = filesterHintName(u0);
+                    const ext = filesterGuessExt(hintedName || u0);
+                    if (ext && FIL_IMG_EXTS.has(ext)) return 'image';
+                    if (ext && FIL_VID_EXTS.has(ext)) return 'video';
+                    // If no extension, treat as "other" (safer for ZIP decisions).
+                    return 'other';
+                } catch (e) {
+                    return 'other';
+                }
+            };
+
+            const applyFilesterAlbumPolicy = async () => {
+                try {
+                    const isFilesterAlbumOriginal = (s) => /(?:^|\/\/)(?:www\.)?filester\.me\/f\//i.test(String(s || '')) || /filester\.me\/f\//i.test(String(s || ''));
+                    const albumItems = resolved.filter(r => r && r.url && isFilesterAlbumOriginal(r.original));
+                    if (!albumItems.length) return;
+
+                    // Group by the original album URL so each album is handled independently.
+                    const groups = new Map();
+                    for (const it of albumItems) {
+                        const k = String(it.original || '');
+                        if (!groups.has(k)) groups.set(k, []);
+                        groups.get(k).push(it);
+                    }
+
+                    for (const [albumUrl, items] of groups.entries()) {
+                        let hasImage = false;
+                        let hasNonImage = false;
+                        let imgCount = 0;
+                        let vidCount = 0;
+                        let otherCount = 0;
+                        let nonImgCount = 0;
+                        let totalSize = 0;
+                        let unknownSize = 0;
+
+                        const unknownItems = [];
+
+                        // Collect classification + sizes.
+                        for (const it of items) {
+                            const kind = filesterClassify(it.url);
+                            if (kind === 'image') { hasImage = true; imgCount++; }
+                            else if (kind === 'video') { hasNonImage = true; vidCount++; nonImgCount++; }
+                            else { hasNonImage = true; otherCount++; nonImgCount++; }
+
+                            const sz0 = filesterHintSize(it.url);
+                            if (sz0 > 0) totalSize += sz0;
+                            else { unknownSize++; unknownItems.push(it); }
+                        }
+
+                        // Best-effort: only attempt HEAD for missing sizes on small albums.
+                        // (Avoids 100x HEAD calls on huge albums; in that case we default to the safer policy.)
+                        if (unknownItems.length && unknownItems.length <= 10 && items.length <= 25) {
+                            for (const it of unknownItems) {
+                                const meta = await preflightMeta(it.url, String(albumUrl || 'https://filester.me/'), false, false);
+                                const sz = Number(meta && meta.size) || 0;
+                                if (sz > 0) { totalSize += sz; unknownSize--; }
+                            }
+                        }
+
+                        const allSizesKnown = unknownSize === 0 && totalSize > 0;
+                        const canZipAll = allSizesKnown && totalSize <= BLOB_MAX_BYTES;
+
+                        const totalStr = allSizesKnown ? `${Math.round(totalSize / 1024 / 1024)}MB` : 'unknown';
+                        const info = `files=${items.length}, images=${imgCount}, videos=${vidCount}, other=${otherCount}, total=${totalStr}, unknown=${unknownSize}`;
+
+                        if (!postSettings.zipped) {
+                            // Unzipped: if there is ANY non-image (mixed or video-only) -> DIRECT all.
+                            if (hasNonImage) {
+                                for (const it of items) it.forceDirect = true;
+                                log.post.info(postId, `::Filester album (unzipped) has non-image -> DIRECT all (${info})::: ${albumUrl}`, postNumber);
+                            }
+                            continue;
+                        }
+
+                        // Zipped ON
+                        if (hasImage && hasNonImage) {
+                            if (!canZipAll) {
+                                // ZIP images only; everything else DIRECT.
+                                for (const it of items) {
+                                    const kind = filesterClassify(it.url);
+                                    if (kind !== 'image') it.forceDirect = true;
+                                }
+                                log.post.info(postId, `::Filester mixed album -> ZIP images, DIRECT others (${info})::: ${albumUrl}`, postNumber);
+                            } else {
+                                log.post.info(postId, `::Filester mixed album total<=~1.6GB -> ZIP all (${info})::: ${albumUrl}`, postNumber);
+                            }
+                        } else if (!hasImage && hasNonImage) {
+                            // Non-image only (videos and/or other file types)
+                            const isVideoOnly = vidCount > 0 && otherCount === 0;
+
+                            if (!canZipAll) {
+                                for (const it of items) it.forceDirect = true;
+                                log.post.info(
+                                    postId,
+                                    `::Filester ${isVideoOnly ? 'video-only' : 'non-image'} album >~1.6GB or unknown -> DIRECT all (${info})::: ${albumUrl}`,
+                                    postNumber
+                                );
+                            } else {
+                                log.post.info(
+                                    postId,
+                                    `::Filester ${isVideoOnly ? 'video-only' : 'non-image'} album total<=~1.6GB -> ZIP all (${info})::: ${albumUrl}`,
+                                    postNumber
+                                );
+                            }
+                        }
+                        // Images-only album: keep default behavior.
                     }
                 } catch (e) {}
             };
 
+            await applyFilesterAlbumPolicy();
+
+            const gofileWarmupOpenTab = warmUrl => {
+                try {
+                    const tab = GM_openInTab(warmUrl, { active: false, insert: true, setParent: true });
+                    setTimeout(() => {
+                        try { xfpdCloseTabHandle(tab); } catch (e) {}
+                    }, GOFILE_WARMUP_MS);
+                } catch (e) {}
+            };
+
+            let filesterNoTabTokenLogged = false;
+
             const startDownload = async (resource, pass = 1) => {
-                const { url, host, original, folderName } = resource;
+                let { url, host, original, folderName } = resource;
+                const zippedForThis = !!(postSettings.zipped && !(resource && (resource.forceDirect || resource.forceUnzipped)) );
                 const isGoFile = isGoFileUrl(url);
                 const isPixeldrain = isPixeldrainUrl(url);
                 const isTurbo = isTurboUrl(url);
                 const isCyberdrop = String(host || '').toLowerCase() === 'cyberdrop';
+                const isBunkr = String((host && host.name) || '').toLowerCase() === 'bunkr' || /bunkr/i.test(String(url || '')) || /bunkr/i.test(String(original || ''));
+                const isFilester = String((host && host.name) || '').toLowerCase() === 'filester' || /(?:^|\.)filester\.me/i.test(String(url || ''));
+
+                // Filester: turn short /d/<slug> view URLs into cache /v/<token> stream URLs (no tabs).
+                // Album pages (/f/...) mostly contain only short slugs, which require this token step.
+                if (isFilester) {
+                    try {
+                        const uF = new URL(String(url || ''));
+                        const isFilesterD = /(^|\.)filester\.me$/i.test(String(uF.host || '')) && /^\/d\//i.test(String(uF.pathname || ''));
+                        if (isFilesterD) {
+                            const slug = String(uF.pathname || '').split('/').filter(Boolean).pop() || '';
+                            // Short slugs look like "d8ZdCxc" / "QnUVP6A" etc.
+                            const looksLikeShortSlug = /^[A-Za-z0-9]{6,12}$/.test(slug);
+                            if (looksLikeShortSlug) {
+                                const apiRes = await h.http.base(
+                                    'POST',
+                                    'https://filester.me/api/public/download',
+                                    {},
+                                    {
+                                        Accept: 'application/json, text/plain, */*',
+                                        'Content-Type': 'application/json',
+                                        Origin: 'https://filester.me',
+                                        Referer: `https://filester.me/d/${slug}`,
+                                        __xfpd_withCredentials: true,
+                                    },
+                                    JSON.stringify({ file_slug: slug }),
+                                    'text',
+                                );
+
+                                const txt = String((apiRes && apiRes.source) || '');
+                                let j = null;
+                                try { j = JSON.parse(txt); } catch (e) {}
+
+                                let token = '';
+                                try { if (j && typeof j.token === 'string') token = String(j.token).trim(); } catch (e) {}
+                                if (!token) {
+                                    try {
+                                        const rel = j && (j.download_url || j.downloadUrl || j.url);
+                                        if (typeof rel === 'string' && rel.trim()) {
+                                            const m = /\/d\/([^\/?#]+)/i.exec(String(rel));
+                                            if (m && m[1]) token = String(m[1]).trim();
+                                        }
+                                    } catch (e) {}
+                                }
+                                if (!token) {
+                                    const m2 = /"token"\s*:\s*"([^"]+)"/i.exec(txt);
+                                    if (m2 && m2[1]) token = String(m2[1]).trim();
+                                }
+
+                                if (token) {
+                                    const candidates = filesterBuildCandidates(token);
+                                    const streamUrl = (candidates && candidates.length) ? candidates[0] : `https://cache6.filester.me/v/${token}`;
+                                    try { filesterCandidatesByToken.set(String(token), candidates); } catch (e) {}
+                                    try {
+                                        for (const c of (candidates || [])) {
+                                            try { filesterSlugByUrl.set(String(c), String(slug)); } catch (e) {}
+                                            try { filesterRefByUrl.set(String(c), 'https://filester.me/'); } catch (e) {}
+                                        }
+                                    } catch (e) {}
+                                    if (!filesterNoTabTokenLogged) {
+                                        filesterNoTabTokenLogged = true;
+                                        log.post.info(postId, `::Filester slug->token->cache (no tab)::: ${slug} -> ${streamUrl}`, postNumber);
+                                    }
+
+                                    try { filesterSlugByUrl.set(String(streamUrl), String(slug)); } catch (e) {}
+                                    try { filesterRefByUrl.set(String(streamUrl), 'https://filester.me/'); } catch (e) {}
+                                    try { filesterRefByUrl.set(String(url), 'https://filester.me/'); } catch (e) {}
+                                    url = streamUrl;
+                                    try { resource.url = streamUrl; } catch (e) {}
+                                }
+                            }
+                        }
+                    } catch (e) {}
+                }
+
 
                 const turboId = isTurbo ? (turboIdBySignedUrl.get(String(url)) || turboExtractId(original) || turboExtractId(url) || '') : '';
                 const turboKey = isTurbo ? (turboId ? `turbo:${turboId}` : `turbo-url:${url}`) : '';
@@ -4378,6 +6370,9 @@ if (tmp.length) {
                 }
                 if (url.includes('turbocdn.st')){
                     reflink = "https://turbo.cr/"
+                }
+                if (/(?:\bfilester\.me\b|cache\d+\.filester\.me)/i.test(String(url || ''))){
+                    reflink = "https://filester.me/"
                 }
 
 
@@ -4477,6 +6472,77 @@ if (tmp.length) {
                             basename = h.basename(url);
                         }
 
+                        // Bunkr: prefer the human filename (og:title / h1) captured during resolution.
+                        if (isBunkr) {
+                            try {
+                                const strip = (u) => String(u || '').split('#')[0].split('?')[0];
+                                const hinted =
+                                    bunkrNameByUrl.get(String(url)) ||
+                                    bunkrNameByUrl.get(strip(url)) ||
+                                    bunkrNameByUrl.get(String((resource && resource.original) || '')) ||
+                                    bunkrNameByUrl.get(strip((resource && resource.original) || '')) ||
+                                    '';
+                                if (hinted && String(hinted).trim() && !xfpdLooksLikeCfFilenameHint(hinted)) {
+                                    basename = String(hinted).trim();
+
+                                    // If hinted has no extension, derive it from URL first, then content-type.
+                                    const hasExt = /\.[A-Za-z0-9]{1,8}$/.test(basename);
+                                    if (!hasExt) {
+                                        const urlExt = h.ext(h.basename(strip(url))) || '';
+                                        const ct0 = String((meta && (meta.contentType || meta.content_type)) || '');
+                                        let ext0 = '';
+                                        if (urlExt) ext0 = String(urlExt);
+                                        else if (/video\/mp4/i.test(ct0)) ext0 = 'mp4';
+                                        else if (/video\/webm/i.test(ct0)) ext0 = 'webm';
+                                        else if (/image\/jpe?g/i.test(ct0)) ext0 = 'jpg';
+                                        else if (/image\/png/i.test(ct0)) ext0 = 'png';
+                                        else if (/image\/gif/i.test(ct0)) ext0 = 'gif';
+                                        else if (/application\/zip/i.test(ct0)) ext0 = 'zip';
+                                        else if (/application\/(x-7z-compressed)/i.test(ct0)) ext0 = '7z';
+                                        else if (/application\/(x-rar|vnd\.rar)|application\/octet-stream/i.test(ct0)) ext0 = 'rar';
+                                        else if (/application\/pdf/i.test(ct0)) ext0 = 'pdf';
+                                        if (ext0) basename = `${basename}.${ext0}`;
+                                    }
+
+                                    basename = sanitizeWinSegment(String(basename || ''));
+                                    if (!basename) basename = sanitizeWinSegment(String(h.basename(strip(url)) || ''));
+                                }
+                            } catch (e) {}
+                        }
+
+                        // Filester: prefer the real filename (from view page / API hints); fallback to a safe slug-based name.
+                        if (isFilester) {
+                            try {
+                                let slug0 = '';
+                                const m = /https?:\/\/(?:www\.)?filester\.me\/d\/([^\/?#]+)/i.exec(String((resource && resource.original) || ''));
+                                if (m && m[1]) slug0 = m[1];
+                                if (!slug0) slug0 = String(filesterSlugByUrl.get(String(url)) || '');
+                                const ct0 = String((meta && (meta.contentType || meta.content_type)) || '');
+                                let ext0 = 'bin';
+                                if (/video\/mp4/i.test(ct0)) ext0 = 'mp4';
+                                else if (/video\/webm/i.test(ct0)) ext0 = 'webm';
+                                else if (/image\/jpe?g/i.test(ct0)) ext0 = 'jpg';
+                                else if (/image\/png/i.test(ct0)) ext0 = 'png';
+                                else if (/image\/gif/i.test(ct0)) ext0 = 'gif';
+                                else if (/application\/zip/i.test(ct0)) ext0 = 'zip';
+                                else if (/application\/x-7z-compressed/i.test(ct0)) ext0 = '7z';
+                                else if (/application\/(x-rar|vnd\.rar)/i.test(ct0)) ext0 = 'rar';
+
+                                const hinted =
+                                    String((meta && (meta.filename || meta.fileName)) || '') ||
+                                    String(filesterNameByUrl.get(String(url)) || '') ||
+                                    (slug0 ? String(filesterNameBySlug.get(String(slug0)) || '') : '');
+
+                                if (hinted && hinted.trim()) {
+                                    basename = hinted.trim();
+                                    const hasExt = /\.[A-Za-z0-9]{1,8}$/.test(String(basename || ''));
+                                    if (!hasExt && ext0) basename = `${basename}.${ext0}`;
+                                } else if (slug0) {
+                                    basename = `Filester_${slug0}.${ext0}`;
+                                }
+                            } catch (e) {}
+                        }
+
                         const originalName = basename;
 
                         // Handle duplicates within this run.
@@ -4528,8 +6594,90 @@ if (tmp.length) {
                         h.ui.setElProps(statusLabel, { color: '#469cf3' });
                         h.show(filePB);
 
-                        GM_download({
-                            url,
+
+                        const origUrl = String(url);
+                        let directUrl = String(url);
+                        let filesterDirectPreflightDone = false;
+
+                        // Filester DIRECT: retry a few times on transient HTTP errors (429/400/etc) and rotate cache hosts (cache6 <-> cache1 ...)
+                        // before starting GM_download. Keeps pauses short (<=~2s).
+                        if (isFilester) {
+                            try {
+                                const ref = String(filesterRefByUrl.get(String(url)) || (resource && resource.original) || 'https://filester.me/');
+                                const token0 = filesterTokenFromVUrl(String(url || ''));
+
+                                if (token0) {
+                                    let candidates0 = filesterCandidatesByToken.get(token0) || filesterBuildCandidates(token0);
+                                    candidates0 = Array.isArray(candidates0) ? candidates0.slice() : [];
+
+                                    const u0 = String(url);
+                                    const ix = candidates0.indexOf(u0);
+                                    if (ix >= 0) candidates0.splice(ix, 1);
+                                    candidates0.unshift(u0);
+
+                                    const cacheLabel = (u) => {
+                                        const m = String(u || '').match(/https?:\/\/cache(\d+)\.filester\.me/i);
+                                        return m && m[1] ? `cache${m[1]}` : (String(u || '').includes('filester.me') ? 'filester' : 'url');
+                                    };
+
+                                    const isRetryableStatus = (st) => {
+                                        const n = Number(st || 0) || 0;
+                                        return n === 0 || n === 400 || n === 403 || n === 404 || n === 429 || (n >= 500 && n <= 599);
+                                    };
+
+                                    const delays = [650, 1300, 2000];
+
+                                    for (let i = 0; i < 3; i++) {
+                                        const cand = candidates0[i] || u0;
+
+                                        const pre = await new Promise(resolve => {
+                                            try {
+                                                GM_xmlhttpRequest({
+                                                    method: 'GET',
+                                                    url: String(cand),
+                                                    responseType: 'text',
+                                                    anonymous: false,
+                                                    withCredentials: true,
+                                                    timeout: 5000,
+                                                    headers: { Range: 'bytes=0-0', Accept: '*/*', Referer: ref },
+                                                    onload: r => resolve(r),
+                                                    onerror: _ => resolve(null),
+                                                    ontimeout: _ => resolve(null),
+                                                });
+                                            } catch (e) {
+                                                resolve(null);
+                                            }
+                                        });
+
+                                        filesterDirectPreflightDone = true;
+
+                                        const st0 = Number(pre && pre.status || 0) || 0;
+                                        const finalUrl = pre && (pre.finalUrl || pre.responseURL) ? String(pre.finalUrl || pre.responseURL) : '';
+                                        const ok = st0 && st0 < 400;
+
+                                        if (ok) {
+                                            directUrl = (finalUrl && /^https?:\/\//i.test(finalUrl)) ? finalUrl : String(cand);
+
+                                            if (i > 0 || String(cand) !== u0 || (finalUrl && finalUrl !== cand)) {
+                                                log.post.info(postId, `::Filester DIRECT picked ${cacheLabel(cand)} (HTTP ${st0})::: ${directUrl}`, postNumber);
+                                            }
+                                            break;
+                                        }
+
+                                        if (i < 2 && isRetryableStatus(st0) && candidates0[i + 1]) {
+                                            const next = candidates0[i + 1];
+                                            const delay = delays[i] || 1000;
+                                            log.post.info(postId, `::Filester DIRECT HTTP ${st0 || 0} -> retry [${i + 1}/3] after ${delay}ms; switching ${cacheLabel(cand)}->${cacheLabel(next)}::: ${next}`, postNumber);
+                                            await h.delayedResolve(delay);
+                                        }
+                                    }
+                                }
+                            } catch (e) {}
+                        }
+
+const imagebamHeaders = isImagebamCdnUrl(url) ? { Referer: imagebamRefererForCdn(url) } : null;
+                        const dlOpts = {
+                            url: directUrl,
                             name: saveAsName,
                                                         onprogress: e => {
                                 const loadedMB = Number((e.loaded || 0) / 1024 / 1024).toFixed(2);
@@ -4574,7 +6722,83 @@ if (tmp.length) {
                                 log.post.error(postId, `::DIRECT download timed out::: ${url}`, postNumber);
                                 console.log(err);
                             },
-                        });
+                        };
+if (imagebamHeaders && isFF) {
+                            // Imagebam CDN often blocks hotlinking without a Referer. In Firefox, GM_download headers
+                            // are unreliable, so fetch as a blob with GM_xmlhttpRequest (with Referer) then save.
+                            try {
+                                GM_xmlhttpRequest({
+                                    method: 'GET',
+                                    url,
+                                    headers: imagebamHeaders,
+                                    responseType: 'blob',
+                                    anonymous: false,
+                                    timeout: 60000,
+                                    onprogress: dlOpts.onprogress,
+                                    onload: r => {
+                                        const ct = headerValue(r.responseHeaders || '', 'content-type');
+                                        const isHtml = /text\/html|application\/xhtml\+xml/i.test(String(ct || ''));
+                                        if (!(r.status >= 200 && r.status < 300) || !r.response || isHtml) {
+                                            dlOpts.onerror({ status: r.status, contentType: ct });
+                                            return;
+                                        }
+                                        const blob = r.response;
+                                        // Guard against tiny non-image responses (common for blocked hotlinks)
+                                        if (blob && blob.size && blob.size < 2048 && isHtml) {
+                                            dlOpts.onerror({ status: r.status, contentType: ct });
+                                            return;
+                                        }
+                                        const blobUrl = URL.createObjectURL(blob);
+                                        GM_download({
+                                            url: blobUrl,
+                                            name: saveAsName,
+                                            onload: () => { try { URL.revokeObjectURL(blobUrl); } catch (e) {} dlOpts.onload(); },
+                                            onerror: err => { try { URL.revokeObjectURL(blobUrl); } catch (e) {} dlOpts.onerror(err); },
+                                            ontimeout: err => { try { URL.revokeObjectURL(blobUrl); } catch (e) {} dlOpts.ontimeout(err); },
+                                        });
+                                    },
+                                    onerror: dlOpts.onerror,
+                                    ontimeout: dlOpts.ontimeout,
+                                });
+                            } catch (e) {
+                                dlOpts.onerror(e);
+                            }
+                        } else {
+                            if (imagebamHeaders) dlOpts.headers = { ...(dlOpts.headers || {}), ...imagebamHeaders };
+
+                            // Filester (Chrome): preflight a 1-byte range request to capture the final URL.
+                            // This helps when the downloads API drops cookies or when Filester redirects to a signed URL.
+                            if (isFilester && !isFF && !filesterDirectPreflightDone) {
+                                try {
+                                    const ref = String(filesterRefByUrl.get(String(url)) || (resource && resource.original) || 'https://filester.me/');
+                                    const pre = await new Promise(resolve => {
+                                        try {
+                                            GM_xmlhttpRequest({
+                                                method: 'GET',
+                                                url: String(dlOpts.url),
+                                                responseType: 'text',
+                                                anonymous: false,
+                                                withCredentials: true,
+                                                timeout: 15000,
+                                                headers: { Range: 'bytes=0-0', Accept: '*/*', Referer: ref },
+                                                onload: r => resolve(r),
+                                                onerror: _ => resolve(null),
+                                                ontimeout: _ => resolve(null),
+                                            });
+                                        } catch (e) {
+                                            resolve(null);
+                                        }
+                                    });
+                                    const finalUrl = pre && (pre.finalUrl || pre.responseURL);
+                                    if (finalUrl && typeof finalUrl === 'string' && /^https?:\/\//i.test(finalUrl)) {
+                                        dlOpts.url = finalUrl;
+                                    }
+                                } catch (e) {}
+                            }
+
+GM_download(dlOpts);
+                        }
+
                     } catch (e) {
                         // Safety: never hang the batch loop.
                         completed++;
@@ -4585,6 +6809,14 @@ if (tmp.length) {
                 };
 
 
+
+                // Forced DIRECT (used by Filester album policy: mixed albums, unzipped mixed/video-only, etc.)
+                if (resource && resource.forceDirect) {
+                    log.post.info(postId, `::Forced DIRECT (skip blob/ZIP)::: ${url}`, postNumber);
+                    setTimeout(() => startDirectDownload(), TURBO_DIRECT_DELAY_MS);
+                    return;
+                }
+
                 const isPixeldrainList = isPixeldrain && /pixeldrain\.com\/l\//i.test(String(original || ''));
                 if (isPixeldrainList) {
                     log.post.info(postId, `::Pixeldrain list (/l/) -> DIRECT (skip blob)::: ${url}`, postNumber);
@@ -4592,7 +6824,7 @@ if (tmp.length) {
                     return;
                 }
 
-if (isGoFile || isPixeldrain) {
+if (isGoFile || isPixeldrain || isFilester) {
                     const meta0 = await preflightMeta(url, reflink, isGoFile, isPixeldrain);
                     if (meta0 && meta0.size && meta0.size > BLOB_MAX_BYTES) {
                         log.post.info(postId, `::Large file (${meta0.size} bytes > ~1.6GB) -> DIRECT (skip blob)::: ${url}`, postNumber);
@@ -4600,15 +6832,19 @@ if (isGoFile || isPixeldrain) {
                         return;
                     }
                 }
-
-                const isBunkr = String((host && host.name) || '').toLowerCase() === 'bunkr' || /bunkr/i.test(String(url || '')) || /bunkr/i.test(String((resource && resource.original) || ''));
                 let abortReason = '';
                 let bunkrMaintenanceHandled = false;
 
-const request = GM_xmlhttpRequest({
+                const isTurboCdn = /turbocdn\.st/i.test(String(url || ''));
+                const filesterRef = isFilester ? String(filesterRefByUrl.get(String(url)) || (resource && resource.original) || 'https://filester.me/') : '';
+                const reqHeaders = isTurboCdn ? { Referer: 'https://turbo.cr/' } : (isFilester ? { Referer: filesterRef } : { Referer: reflink });
+
+                const request = GM_xmlhttpRequest({
                     url,
-                    headers: (/turbocdn\.st/i.test(String(url || '')) ? { Referer: 'https://turbo.cr/' } : { Referer: reflink }),
+                    headers: reqHeaders,
                     responseType: 'blob',
+                    anonymous: false,
+                    ...(isFilester ? { withCredentials: true } : {}),
                     onreadystatechange: response => {
                         if (response.readyState === 2) {
                             let matches = h.re.matchAll(/(?<=attachment;filename=").*?(?=")/gis, response.responseHeaders);
@@ -4638,7 +6874,7 @@ const request = GM_xmlhttpRequest({
                         });
 
                         // Pixeldrain/GoFile: if size only becomes known mid-download and it's > ~1.6GB, switch to direct download.
-                        if (!switchedToDirect && (isGoFile || isPixeldrain) && response && response.total && response.total > BLOB_MAX_BYTES) {
+                        if (!switchedToDirect && (isGoFile || isPixeldrain || isFilester) && response && response.total && response.total > BLOB_MAX_BYTES) {
                             log.post.info(postId, `::Large file (${response.total} bytes > ~1.6GB) detected -> switch to DIRECT::: ${url}`, postNumber);
                             switchedToDirect = true;
                             try { request.abort(); } catch (e) {}
@@ -4737,6 +6973,188 @@ const request = GM_xmlhttpRequest({
                         }
 
 
+                        // Filester: detect blocked/tiny responses (often an error thumbnail or HTML gate) and fall back to DIRECT once.
+                        if (isFilester) {
+                            const mCt = /content-type:\s*([^\r\n]+)/i.exec(response.responseHeaders || '');
+                            const ct = mCt && mCt[1] ? mCt[1] : '';
+                            const isGate = /text\/html|application\/xhtml\+xml|application\/json/i.test(ct);
+                            const badStatus = !response.status || response.status >= 400;
+
+                            const blob = response.response;
+                            const size = blob && typeof blob.size === 'number' ? blob.size : 0;
+
+                            let hintSize = 0;
+                            try {
+                                const s0 = String(filesterSlugByUrl.get(String(url)) || '');
+                                hintSize = Number(filesterSizeBySlug.get(s0) || filesterSizeByUrl.get(String(url)) || 0) || 0;
+                            } catch (e) {
+                                hintSize = 0;
+                            }
+
+                            // Only treat "tiny" as suspicious when we have a meaningful expected size.
+                            const suspiciousTiny = !!hintSize && size > 0 && size <= 16384 && hintSize >= 32768;
+
+                            if (badStatus || isGate || suspiciousTiny) {
+                                if (pass === 1) {
+                                    // Filester: some tokens are not available on cache6 (404). Try other cacheN hosts before falling back.
+                                    if (badStatus && Number(response.status || 0) === 404) {
+                                        const token0 = filesterTokenFromVUrl(String(url || ''));
+                                        if (token0) {
+                                            const candidates0 = filesterCandidatesByToken.get(token0) || filesterBuildCandidates(token0);
+                                            let tried0 = filesterTriedByToken.get(token0);
+                                            if (!tried0) { tried0 = new Set(); filesterTriedByToken.set(token0, tried0); }
+                                            tried0.add(String(url));
+                                            let nextUrl = '';
+                                            for (const c of (candidates0 || [])) {
+                                                if (!tried0.has(c)) { nextUrl = c; tried0.add(c); break; }
+                                            }
+                                            if (nextUrl) {
+                                                log.post.info(postId, `::Filester cache 404 -> try next cache [${tried0.size}/${(candidates0 || []).length}]::: ${nextUrl}`, postNumber);
+                                                try { filesterRefByUrl.set(String(nextUrl), 'https://filester.me/'); } catch (e) {}
+                                                try { resource.url = nextUrl; } catch (e) {}
+                                                try { url = nextUrl; } catch (e) {}
+                                                startDownload(resource, pass);
+                                                return;
+                                            }
+                                        }
+                                    }
+
+
+                                                                        // Filester: retry a few times on transient HTTP errors (429/400/etc) before switching to DIRECT.
+                                    // Keep pauses short (<=~2.5s) and try alternate cacheN hosts (cache6 <-> cache1) when possible.
+                                    if (badStatus) {
+                                        const st0 = Number(response.status || 0) || 0;
+                                        const isRetryable = (
+                                            st0 === 429 ||
+                                            st0 === 400 ||
+                                            st0 === 403 ||
+                                            st0 === 408 ||
+                                            st0 === 409 ||
+                                            st0 === 425 ||
+                                            st0 === 500 ||
+                                            st0 === 502 ||
+                                            st0 === 503 ||
+                                            st0 === 504
+                                        );
+
+                                        if (isRetryable) {
+                                            const token0 = filesterTokenFromVUrl(String(url || ''));
+                                            const key0 = token0 || String(url || '');
+                                            const max0 = 3;
+
+                                            let a0 = Number(filesterRetryAttemptsByKey.get(key0) || 0) || 0;
+                                            a0++;
+                                            filesterRetryAttemptsByKey.set(key0, a0);
+
+                                            let waitMs = 0;
+                                            const ra0 = headerValue(response.responseHeaders || '', 'retry-after');
+                                            if (ra0) {
+                                                const n0 = Number(String(ra0).trim());
+                                                if (Number.isFinite(n0) && n0 > 0) waitMs = Math.floor(n0 * 1000);
+                                            }
+                                            if (!waitMs) {
+                                                waitMs = (650 * a0) + Math.floor(Math.random() * 250);
+                                            }
+                                            waitMs = Math.min(2500, Math.max(0, waitMs));
+
+                                            let nextUrl = '';
+                                            if (token0) {
+                                                const candidates0 = filesterCandidatesByToken.get(token0) || filesterBuildCandidates(token0);
+                                                let tried0 = filesterTriedByToken.get(token0);
+                                                if (!tried0) { tried0 = new Set(); filesterTriedByToken.set(token0, tried0); }
+                                                tried0.add(String(url));
+
+                                                const isOn6 = /https?:\/\/cache6\.filester\.me\//i.test(String(url || ''));
+                                                const isOn1 = /https?:\/\/cache1\.filester\.me\//i.test(String(url || ''));
+
+                                                // Prefer swapping cache6 <-> cache1 first.
+                                                if (isOn6) {
+                                                    for (const c of (candidates0 || [])) {
+                                                        if (/https?:\/\/cache1\.filester\.me\//i.test(c) && !tried0.has(c)) { nextUrl = c; tried0.add(c); break; }
+                                                    }
+                                                } else if (isOn1) {
+                                                    for (const c of (candidates0 || [])) {
+                                                        if (/https?:\/\/cache6\.filester\.me\//i.test(c) && !tried0.has(c)) { nextUrl = c; tried0.add(c); break; }
+                                                    }
+                                                }
+
+                                                if (!nextUrl) {
+                                                    for (const c of (candidates0 || [])) {
+                                                        if (!tried0.has(c)) { nextUrl = c; tried0.add(c); break; }
+                                                    }
+                                                }
+                                            }
+
+                                            if (a0 <= max0) {
+                                                const tgt = nextUrl || String(url || '');
+                                                // retry logging: include cache switch info (cache6<->cache1 etc.)
+                                                let switchInfo = '';
+                                                try {
+                                                    const fromU = String(url || '');
+                                                    const toU = String(nextUrl || '');
+                                                    if (toU && toU !== fromU) {
+                                                        const mf = /https?:\/\/(cache\d+)\.filester\.me\//i.exec(fromU);
+                                                        const mt = /https?:\/\/(cache\d+)\.filester\.me\//i.exec(toU);
+                                                        if (mf && mt) switchInfo = `; switching ${mf[1]}->${mt[1]}`;
+                                                        else if (mf && !mt) switchInfo = `; switching ${mf[1]}->other`;
+                                                        else if (!mf && mt) switchInfo = `; switching other->${mt[1]}`;
+                                                        else switchInfo = '; switching host';
+                                                    }
+                                                } catch (e) {}
+                                                log.post.info(postId, `::Filester HTTP ${st0} -> retry [${a0}/${max0}] after ${waitMs}ms${switchInfo}::: ${tgt}`, postNumber);
+
+                                                setTimeout(() => {
+                                                    try {
+                                                        if (nextUrl) {
+                                                            try { filesterRefByUrl.set(String(nextUrl), 'https://filester.me/'); } catch (e) {}
+                                                            try { resource.url = nextUrl; } catch (e) {}
+                                                            try { url = nextUrl; } catch (e) {}
+                                                        }
+                                                    } catch (e) {}
+                                                    startDownload(resource, pass);
+                                                }, waitMs);
+
+                                                return;
+                                            }
+                                        }
+                                    }
+
+const isView = /https?:\/\/(?:www\.)?filester\.me\/d\//i.test(String(url || ''));
+                                    if (!isView) {
+                                        log.post.info(postId, `::Filester blocked/tiny response -> switch to DIRECT [1/2]::: ${url}`, postNumber);
+                                        startDirectDownload({ size: hintSize || 0 });
+                                        return;
+                                    }
+
+                                    // If we only have a /d/ view URL, DIRECT would just save HTML.
+                                    completed++;
+                                    completedBatchedDownloads++;
+
+                                    h.ui.setText(statusLabel, `${completed} / ${totalDownloadable} 🢒 ${ellipsedUrl}`);
+                                    h.ui.setElProps(statusLabel, { color: '#b23b3b' });
+                                    h.ui.setElProps(totalPB, {
+                                        width: `${(completed / totalDownloadable) * 100}%`,
+                                    });
+
+                                    log.post.error(postId, `::Filester failed (resolved to /d/ HTML view)::: ${url}`, postNumber);
+                                    return;
+                                }
+
+                                completed++;
+                                completedBatchedDownloads++;
+
+                                h.ui.setText(statusLabel, `${completed} / ${totalDownloadable} 🢒 ${ellipsedUrl}`);
+                                h.ui.setElProps(statusLabel, { color: '#b23b3b' });
+                                h.ui.setElProps(totalPB, {
+                                    width: `${(completed / totalDownloadable) * 100}%`,
+                                });
+
+                                const reason = badStatus ? `HTTP ${response.status || 0}` : (isGate ? 'HTML/JSON gate' : 'tiny/blocked response');
+                                log.post.error(postId, `::Filester failed (${reason})::: ${url}`, postNumber);
+                                return;
+                            }
+                        }
+
                         // Bunkr: skip maintenance/dead placeholder responses (often tiny HTML) instead of saving a tiny file.
                         if (String((host && host.name) || '').toLowerCase() === 'bunkr' || /bunkr/i.test(String(url || '')) || /bunkr/i.test(String((resource && resource.original) || ''))) {
                             const mCt = /content-type:\s*([^\r\n]+)/i.exec(response.responseHeaders || '');
@@ -4820,6 +7238,13 @@ const request = GM_xmlhttpRequest({
                         }
 
                         if (!filename) {
+                            const hintedFilester = filesterNameByUrl.get(String(url));
+                            if (hintedFilester) {
+                                filename = { url, name: String(hintedFilester) };
+                            }
+                        }
+
+                        if (!filename) {
                             const hintedByUrl = cyberdropNameByUrl.get(String(url));
                             if (hintedByUrl) {
                                 filename = { url, name: String(hintedByUrl) };
@@ -4839,8 +7264,11 @@ const request = GM_xmlhttpRequest({
 
                         let basename;
 
-                        if (url.includes('pixeldrain.com')) {
-                            basename = response.responseHeaders.match(/^content-disposition.+filename=(.+)$/im)[1].replace(/"/g, '');
+                        if (/(?:pixeldrain\.(?:com|net)|pixeldra\.in)/i.test(String(url || ''))) {
+                            const rh = response && response.responseHeaders ? String(response.responseHeaders) : '';
+                            basename =
+                                parseDispositionFilename(rh) ||
+                                (filename ? filename.name : h.basename(url).replace(/\?.*/, '').replace(/#.*/, ''));
                         } else if (url.includes('https://simpcity.su/attachments/')) {
                             basename = filename ? filename.name : h.basename(url).replace(/(.*)-(.{3,4})\.\d*$/i, '$1.$2');
                         } else if (url.includes('kemono.cr')) {
@@ -4852,9 +7280,9 @@ const request = GM_xmlhttpRequest({
                                 .replace('%20', ' ');
                         } else if (url.includes('cyberdrop')) {
                             const rh = response && response.responseHeaders ? String(response.responseHeaders) : '';
-                            const mCd = rh.match(/^content-disposition.+filename=(.+)$/im);
-                            basename = mCd && mCd[1]
-                                ? String(mCd[1]).replace(/"/g, '')
+                            const cdName = parseDispositionFilename(rh);
+                            basename = cdName
+                                ? cdName
                                 : (filename ? filename.name : h.basename(url).replace(/\?.*/, '').replace(/#.*/, ''));
 
                             try { basename = decodeURI(basename); } catch (e) {}
@@ -4887,6 +7315,82 @@ const request = GM_xmlhttpRequest({
                             }
                         }
 
+                        // Bunkr: prefer the human filename (og:title / h1) captured during resolution.
+                        if (isBunkr) {
+                            try {
+                                const strip = (u) => String(u || '').split('#')[0].split('?')[0];
+                                const hinted =
+                                    bunkrNameByUrl.get(String(url)) ||
+                                    bunkrNameByUrl.get(strip(url)) ||
+                                    bunkrNameByUrl.get(String((resource && resource.original) || '')) ||
+                                    bunkrNameByUrl.get(strip((resource && resource.original) || '')) ||
+                                    '';
+                                if (hinted && String(hinted).trim() && !xfpdLooksLikeCfFilenameHint(hinted)) {
+                                    basename = String(hinted).trim();
+
+                                    // If hinted has no extension, derive it from URL first, then content-type.
+                                    const hasExt = /\.[A-Za-z0-9]{1,8}$/.test(basename);
+                                    if (!hasExt) {
+                                        const urlExt = h.ext(h.basename(strip(url))) || '';
+                                        const ct0 = headerValue(response.responseHeaders || '', 'content-type');
+                                        let ext0 = '';
+                                        if (urlExt) ext0 = String(urlExt);
+                                        else if (/video\/mp4/i.test(ct0)) ext0 = 'mp4';
+                                        else if (/video\/webm/i.test(ct0)) ext0 = 'webm';
+                                        else if (/image\/jpe?g/i.test(ct0)) ext0 = 'jpg';
+                                        else if (/image\/png/i.test(ct0)) ext0 = 'png';
+                                        else if (/image\/gif/i.test(ct0)) ext0 = 'gif';
+                                        else if (/application\/zip/i.test(ct0)) ext0 = 'zip';
+                                        else if (/application\/(x-7z-compressed)/i.test(ct0)) ext0 = '7z';
+                                        else if (/application\/(x-rar|vnd\.rar)|application\/octet-stream/i.test(ct0)) ext0 = 'rar';
+                                        else if (/application\/pdf/i.test(ct0)) ext0 = 'pdf';
+                                        if (ext0) basename = `${basename}.${ext0}`;
+                                    }
+
+                                    basename = sanitizeWinSegment(String(basename || ''));
+                                    if (!basename) basename = sanitizeWinSegment(String(h.basename(strip(url)) || ''));
+                                }
+                            } catch (e) {}
+                        }
+
+                        // Filester: prefer the real filename (from view page / API hints). Only fall back to a safe slug-based name when needed.
+                        if (/(?:^|https?:\/\/)(?:cache\d+\.)?filester\.me\/(?:d|v)\//i.test(String(url || ''))) {
+                            try {
+                                let slug0 = '';
+                                const m = /https?:\/\/(?:www\.)?filester\.me\/d\/([^\/?#]+)/i.exec(String((resource && resource.original) || ''));
+                                if (m && m[1]) slug0 = m[1];
+                                if (!slug0) slug0 = String(filesterSlugByUrl.get(String(url)) || '');
+                                const ct0 = headerValue(response.responseHeaders || '', 'content-type');
+                                let ext0 = 'bin';
+                                if (/video\/mp4/i.test(ct0)) ext0 = 'mp4';
+                                else if (/video\/webm/i.test(ct0)) ext0 = 'webm';
+                                else if (/image\/jpe?g/i.test(ct0)) ext0 = 'jpg';
+                                else if (/image\/png/i.test(ct0)) ext0 = 'png';
+                                else if (/image\/gif/i.test(ct0)) ext0 = 'gif';
+                                else if (/application\/zip/i.test(ct0)) ext0 = 'zip';
+                                else if (/application\/x-7z-compressed/i.test(ct0)) ext0 = '7z';
+                                else if (/application\/(x-rar|vnd\.rar)/i.test(ct0)) ext0 = 'rar';
+
+                                const hinted =
+                                    String((filename && filename.name) || '') ||
+                                    String(filesterNameByUrl.get(String(url)) || '') ||
+                                    (slug0 ? String(filesterNameBySlug.get(String(slug0)) || '') : '');
+
+                                if (hinted && hinted.trim()) {
+                                    basename = hinted.trim();
+                                    const hasExt = /\.[A-Za-z0-9]{1,8}$/.test(String(basename || ''));
+                                    if (!hasExt && ext0) basename = `${basename}.${ext0}`;
+                                } else if (slug0) {
+                                    basename = `Filester_${slug0}.${ext0}`;
+                                }
+
+                                basename = sanitizeWinSegment(String(basename || ''));
+                            } catch (e) {}
+                        }
+
+
+
+
                         let ext = h.ext(basename);
 
                         const mimeType = mimeTypes.find(m => m.url === url);
@@ -4909,7 +7413,8 @@ const request = GM_xmlhttpRequest({
 
                         if (filenames.find(f => f.original === basename)) {
                             const count = filenames.filter(f => f.original === basename).length;
-                            basename = `${h.fnNoExt(basename)} (${count + 1}).${ext}`;
+                            const baseNoExt = (ext && h.fnNoExt(basename)) ? h.fnNoExt(basename) : basename;
+                            basename = ext ? `${baseNoExt} (${count + 1}).${ext}` : `${baseNoExt} (${count + 1})`;
                         }
 
                         if (!filename) {
@@ -4954,9 +7459,9 @@ const request = GM_xmlhttpRequest({
                         const saveAsFF = `${title} #${postNumber} - ${ensureUniqueFlatName(fn.replace(/\//g, ' - '))}`;
                         const saveAsPath = `${title}/${fn}`;
 
-                        const saveAsName = (isFF && !postSettings.zipped) ? saveAsFF : saveAsPath;
+                        const saveAsName = (isFF && !zippedForThis) ? saveAsFF : saveAsPath;
 
-                        if (!postSettings.zipped) {
+                        if (!zippedForThis) {
                             const blobUrl = URL.createObjectURL(fileBlob);
                             GM_download({
                                 url: blobUrl,
@@ -4972,7 +7477,7 @@ const request = GM_xmlhttpRequest({
                             });
                         }
 
-                                                if (postSettings.zipped) {
+                                                if (zippedForThis) {
                             zip.file(fn, fileBlob);
                             zipFileCount++;
                         }
@@ -5130,8 +7635,6 @@ return;
 
         const mainZipName = customFilename || `${title} #${postNumber}.zip`;
         const generatedZipName = `${title} #${postNumber} generated.zip`;
-
-
         // Original (single ZIP) behavior.
         const needZipBlob = (postSettings.generateLog || postSettings.generateLinks || (postSettings.zipped && zipFileCount > 0));
 
@@ -5364,7 +7867,7 @@ async function cyberdropWarmupOnce(key, warmUrl, ms = CYBERDROP_WARMUP_DEFAULT_M
             try {
                 const tab = GM_openInTab(u, { active: false, insert: true, setParent: true });
                 setTimeout(() => {
-                    try { if (tab && typeof tab.close === 'function') tab.close(); } catch (e) {}
+                    try { xfpdCloseTabHandle(tab); } catch (e) {}
                     resolve();
                 }, Math.max(250, ms));
             } catch (e) {
@@ -5376,6 +7879,7 @@ async function cyberdropWarmupOnce(key, warmUrl, ms = CYBERDROP_WARMUP_DEFAULT_M
     cyberdropWarmupAttempted.set(k, cyberdropWarmupChain);
     await cyberdropWarmupChain;
 }
+
 
 
 // Legacy helper kept for compatibility (expects a Cyberdrop API URL that returns JSON with a "url" field).
@@ -5420,6 +7924,8 @@ const parsedPosts = [];
 const selectedPosts = [];
 
 (function () {
+    try { if (window.__XFPD_ABORT_MAIN) return; } catch (e) {}
+
     window.addEventListener('beforeunload', e => {
         if (processing.find(p => p.processing)) {
             const message = 'Downloads are in progress. Sure you wanna exit this page?';
