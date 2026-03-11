@@ -7,7 +7,7 @@
 // @version 3.17
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
-// @icon https://simpcity.cr/data/assets/logo/favicon.png
+// @icon https://simp4.selti-delivery.ru/simpcityIcon192.png
 // @license WTFPL; http://www.wtfpl.net/txt/copying/
 // @match https://simpcity.cr/threads/*
 // @match https://simpcity.is/threads/*
