@@ -4,10 +4,10 @@
 // @namespace https://github.com/SkyCloudDev
 // @author SkyCloudDev
 // @description Downloads images and videos from posts
-// @version 3.17
+// @version 3.18
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
-// @icon https://simp4.host.church/simpcityIcon192.png
+// @icon https://simp4.cuckcapital.cr/simpcityIcon192.png
 // @license WTFPL; http://www.wtfpl.net/txt/copying/
 // @match https://simpcity.cr/threads/*
 // @match https://simpcity.is/threads/*
@@ -84,7 +84,7 @@
 // @connect jpg5.su
 // @connect jpg6.su
 // @connect jpg7.cr
-// @connect selti-delivery.ru
+// @connect cuckcapital.cr
 // @connect imgbox.com
 // @connect pixhost.to
 // @connect pomf2.lain.la
@@ -111,6 +111,9 @@
 // @connect give.xxx
 // @connect githubusercontent.com
 // @connect filester.me
+// @connect filester.sh
+// @connect filester.si
+// @connect filester.gg
 // @run-at document-start
 // @grant GM_xmlhttpRequest
 // @grant GM_download
@@ -1949,7 +1952,7 @@ const hosts = [
     ['Simpcity:Attachments', [/(\/attachments\/|\/data\/video\/)/]],
     ['Coomer:Profiles', [/coomer.st\/[~an@._-]+\/user/]],
     ['Coomer:image', [/(\w+\.)?coomer.st\/(data|thumbnail)/]],
-    ['JPGX:image', [/(simp\d+\.)?(selti-delivery\.ru|jpg\d?\.(church|fish|fishing|pet|su|cr))\/(?!(img\/|a\/|album\/))/, /jpe?g\d\.(church|fish|fishing|pet|su|cr)(\/a\/|\/album\/)[~an@-_.]+<no_qs>/]],
+    ['JPGX:image', [/(simp\d+\.)?(cuckcapital\.cr|jpg\d?\.(church|fish|fishing|pet|su|cr))\/(?!(img\/|a\/|album\/))/, /jpe?g\d\.(church|fish|fishing|pet|su|cr)(\/a\/|\/album\/)[~an@-_.]+<no_qs>/]],
     ['kemono:direct link', [/.{2,6}\.kemono.cr\/data\//]],
     ['Postimg:image', [/!!https?:\/\/(www.)?i\.?(postimg|pixxxels).cc\/(.{8})/]], //[/!!https?:\/\/(www.)?postimg.cc\/(.{8})/]],
     ['Ibb:image',
@@ -1983,8 +1986,8 @@ const hosts = [
     ['Give.xxx:Profiles', [/give.xxx\/[~an@_-]+/]],
     ['Pixeldrain:', [/(focus\.)?(?:pixeldrain\.com|pixeldrain\.net|pixeldra\.in)\/[lu]\//]],
     ['Gofile:', [/gofile.io\/d/]],
-    ['Filester:links', [/filester\.me\/d\//]],
-    ['Filester:albums', [/filester\.me\/f\/[~an@-_.]+<no_qs>/]],
+    ['Filester:links', [/filester\.(me|sh|si|gg)\/d\//]],
+    ['Filester:albums', [/filester\.(me|sh|si|gg)\/f\/[~an@-_.]+<no_qs>/]],
     ['Box.com:', [/m\.box\.com\//]],
     ['Yandex:', [/(disk\.)?yandex\.[a-z]+/]],
     ['Cyberfile:', [/!!https:\/\/cyberfile.(su|me)\/\w+(\/)?(?=")/, /cyberfile.(su|me)\/folder\//]],
@@ -2208,7 +2211,7 @@ const resolvers = [
     ],
     [[/kemono.cr\/data/], url => url],
     [
-        [/(jpg\d\.(church|fish|fishing|pet|su|cr))|selti-delivery\.ru\//i, /:!jpe?g\d\.(church|fish|fishing|pet|su|cr)(\/a\/|\/album\/)/i],
+        [/(jpg\d\.(church|fish|fishing|pet|su|cr))|cuckcapital\.cr\//i, /:!jpe?g\d\.(church|fish|fishing|pet|su|cr)(\/a\/|\/album\/)/i],
         url =>
         url
         .replace('.th.', '.')
@@ -4381,7 +4384,7 @@ if (page === 1) {
     ],
 
 [
-    [/filester\.me\/f\//],
+    [/filester\.(me|sh|si|gg)\/f\//],
     async (url, http, spoilers, postId, postSettings, progressCB) => {
         try {
             url = String(url || '').trim();
@@ -4415,8 +4418,8 @@ if (page === 1) {
                         if (!s) return '';
 
                         // Strip common suffixes.
-                        s = s.replace(/\s*\|\s*filester\.me\s*$/i, '').trim();
-                        s = s.replace(/\s*-\s*filester\.me\s*$/i, '').trim();
+                        s = s.replace(/\s*\|\s*filester\.(me|sh|si|gg)\s*$/i, '').trim();
+                        s = s.replace(/\s*-\s*filester\.(me|sh|si|gg)\s*$/i, '').trim();
 
                         // Replace remaining pipes with a Windows-safe separator.
                         if (s.includes('|')) s = s.replace(/\s*\|\s*/g, ' - ').trim();
@@ -4430,7 +4433,7 @@ if (page === 1) {
                     const isBad = (t) => {
                         const x = String(t || '').trim();
                         if (!x) return true;
-                        if (/^filester\.me\b/i.test(x)) return true;
+                        if (/^filester\.(me|sh|si|gg)\b/i.test(x)) return true;
                         if (/BETA\s*\d/i.test(x)) return true;
                         return false;
                     };
@@ -4615,7 +4618,7 @@ if (page === 1) {
     },
 ],
 [
-    [/filester\.me\/d\//],
+    [/filester\.(me|sh|si|gg)\/d\//],
     async (url, http, spoilers, postId, postSettings, progressCB) => {
         const slug = (() => {
             try {
@@ -4623,7 +4626,7 @@ if (page === 1) {
                 const parts = String(u.pathname || '').split('/').filter(Boolean);
                 return parts.length ? parts[parts.length - 1] : '';
             } catch (e) {
-                const m = /filester\.me\/d\/([^\/?#]+)/i.exec(String(url || ''));
+                const m = /filester\.(me|sh|si|gg)\/d\/([^\/?#]+)/i.exec(String(url || ''));
                 return m && m[1] ? m[1] : '';
             }
         })();
@@ -4720,18 +4723,18 @@ if (page === 1) {
 
             const clean = candidates
                 .map(s => String(s))
-                .filter(s => !/filester\.me\/api\//i.test(s))
-                .filter(s => !/filester\.me\/(css|js)\//i.test(s));
+                .filter(s => !/filester\.(me|sh|si|gg)\/api\//i.test(s))
+                .filter(s => !/filester\.(me|sh|si|gg)\/(css|js)\//i.test(s));
 
             if (!clean.length) return null;
 
             const score = (s) => {
                 let sc = 0;
                 // Strongly prefer CDN /v/ stream URLs.
-                if (/https?:\/\/cache\d+\.filester\.me\/v\//i.test(s)) sc += 200;
-                else if (/cache\d+\.filester\.me/i.test(s)) sc += 160;
+                if (/https?:\/\/cache\d+\.filester\.(me|sh|si|gg)\/v\//i.test(s)) sc += 200;
+                else if (/cache\d+\.filester\.(me|sh|si|gg)/i.test(s)) sc += 160;
                 if (/\/v\//i.test(s)) sc += 80;
-                if (/\.filester\.me\//i.test(s)) sc += 10;
+                if (/\.filester\.(me|sh|si|gg)\//i.test(s)) sc += 10;
                 // De-prioritize HTML view tokens (/d/).
                 if (/\/d\//i.test(s)) sc -= 25;
                 if (/\.mp4(\?|$)/i.test(s)) sc += 2;
@@ -4960,7 +4963,7 @@ const filesterParseDispositionFilename = (headersRaw) => {
 
                     const body = String((r2 && r2.source) || '');
 
-                    const mFull = /(https?:\/\/cache\d+\.filester\.me\/v\/[^\"'<>\s]+)/i.exec(body);
+                    const mFull = /(https?:\/\/cache\d+\.filester\.(me|sh|si|gg)\/v\/[^\"'<>\s]+)/i.exec(body);
                     if (mFull && mFull[1]) return String(mFull[1]).trim();
 
                     const mRel = /[\"'](\/v\/[^\"'<>\s]+)[\"']/i.exec(body);
@@ -5002,7 +5005,7 @@ const filesterParseDispositionFilename = (headersRaw) => {
                                     relViewPath = String(u0.pathname || '') + String(u0.search || '');
                                 }
                                 // If the API already gave us a cache /v/ URL, keep it as an immediate candidate.
-                                if (!streamUrlImmediate && /https?:\/\/cache6\.filester\.me\/v\//i.test(s)) {
+                                if (!streamUrlImmediate && /https?:\/\/cache6\.filester\.(me|sh|si|gg)\/v\//i.test(s)) {
                                     streamUrlImmediate = s;
                                 }
                             } catch (e) {}
@@ -5035,7 +5038,7 @@ try {
         try {
             const fu0 = String((htmlRes0 && htmlRes0.finalUrl) || '');
             if (fu0 && /\/v\//i.test(fu0)) {
-                if (!streamUrlImmediate && /https?:\/\/cache6\.filester\.me\/v\//i.test(fu0)) {
+                if (!streamUrlImmediate && /https?:\/\/cache6\.filester\.(me|sh|si|gg)\/v\//i.test(fu0)) {
                     streamUrlImmediate = fu0;
                 }
                 if (!relViewPath) {
@@ -5052,8 +5055,8 @@ try {
         // Fallback: extract a /v/... token from the HTML itself.
         if (!streamUrlImmediate) {
             try {
-                const mFull = /(https?:\/\/cache\d+\.filester\.me\/v\/[^\s"'<>]+)/i.exec(html0);
-                if (mFull && mFull[1] && /https?:\/\/cache6\.filester\.me\/v\//i.test(mFull[1])) streamUrlImmediate = mFull[1];
+                const mFull = /(https?:\/\/cache\d+\.filester\.(me|sh|si|gg)\/v\/[^\s"'<>]+)/i.exec(html0);
+                if (mFull && mFull[1] && /https?:\/\/cache6\.filester\.(me|sh|si|gg)\/v\//i.test(mFull[1])) streamUrlImmediate = mFull[1];
             } catch (e) {}
         }
         if (!relViewPath) {
@@ -5137,7 +5140,7 @@ try {
                             const u2 = new URL(sUrl);
                             if (/^\/v\//i.test(String(u2.pathname || ''))) {
                                 relViewPath = String(u2.pathname || '') + String(u2.search || '');
-                                if (/https?:\/\/cache6\.filester\.me\/v\//i.test(sUrl)) streamUrlImmediate = String(sUrl);
+                                if (/https?:\/\/cache6\.filester\.(me|sh|si|gg)\/v\//i.test(sUrl)) streamUrlImmediate = String(sUrl);
                             }
                         } catch (e) {
                             if (String(sUrl).startsWith('/v/')) relViewPath = String(sUrl);
@@ -6063,7 +6066,7 @@ if (tmp.length) {
 
                     // Fallback HEAD (works for GoFile store links and Pixeldrain list ZIPs)
                     const nameHasExt = /\.[A-Za-z0-9]{1,8}$/.test(String(meta.filename || ''));
-                    const isFilester = /(?:^https?:\/\/)?(?:cache\d+\.)?filester\.me\/v\//i.test(String(dlUrl || ''));
+                    const isFilester = /(?:^https?:\/\/)?(?:cache\d+\.)?filester\.(me|sh|si|gg)\/v\//i.test(String(dlUrl || ''));
                     const needHead = !!(isGoFile || isPixeldrain || (!isFilester && (!meta.size || !meta.filename || !nameHasExt)));
                     if (needHead) {
                         const hRes = await gmHead(dlUrl, reflink);
@@ -6158,7 +6161,7 @@ if (tmp.length) {
 
             const applyFilesterAlbumPolicy = async () => {
                 try {
-                    const isFilesterAlbumOriginal = (s) => /(?:^|\/\/)(?:www\.)?filester\.me\/f\//i.test(String(s || '')) || /filester\.me\/f\//i.test(String(s || ''));
+                    const isFilesterAlbumOriginal = (s) => /(?:^|\/\/)(?:www\.)?filester\.(me|sh|si|gg)\/f\//i.test(String(s || '')) || /filester\.(me|sh|si|gg)\/f\//i.test(String(s || ''));
                     const albumItems = resolved.filter(r => r && r.url && isFilesterAlbumOriginal(r.original));
                     if (!albumItems.length) return;
 
@@ -6276,14 +6279,14 @@ if (tmp.length) {
                 const isTurbo = isTurboUrl(url);
                 const isCyberdrop = String(host || '').toLowerCase() === 'cyberdrop';
                 const isBunkr = String((host && host.name) || '').toLowerCase() === 'bunkr' || /bunkr/i.test(String(url || '')) || /bunkr/i.test(String(original || ''));
-                const isFilester = String((host && host.name) || '').toLowerCase() === 'filester' || /(?:^|\.)filester\.me/i.test(String(url || ''));
+                const isFilester = String((host && host.name) || '').toLowerCase() === 'filester' || /(?:^|\.)filester\.(me|sh|si|gg)/i.test(String(url || ''));
 
                 // Filester: turn short /d/<slug> view URLs into cache /v/<token> stream URLs (no tabs).
                 // Album pages (/f/...) mostly contain only short slugs, which require this token step.
                 if (isFilester) {
                     try {
                         const uF = new URL(String(url || ''));
-                        const isFilesterD = /(^|\.)filester\.me$/i.test(String(uF.host || '')) && /^\/d\//i.test(String(uF.pathname || ''));
+                        const isFilesterD = /(^|\.)filester\.(me|sh|si|gg)$/i.test(String(uF.host || '')) && /^\/d\//i.test(String(uF.pathname || ''));
                         if (isFilesterD) {
                             const slug = String(uF.pathname || '').split('/').filter(Boolean).pop() || '';
                             // Short slugs look like "d8ZdCxc" / "QnUVP6A" etc.
@@ -6371,7 +6374,7 @@ if (tmp.length) {
                 if (url.includes('turbocdn.st')){
                     reflink = "https://turbo.cr/"
                 }
-                if (/(?:\bfilester\.me\b|cache\d+\.filester\.me)/i.test(String(url || ''))){
+                if (/(?:\bfilester\.(me|sh|si|gg)\b|cache\d+\.filester\.(me|sh|si|gg))/i.test(String(url || ''))){
                     reflink = "https://filester.me/"
                 }
 
@@ -6395,7 +6398,7 @@ if (tmp.length) {
                 const ellipsedUrl = h.limit(url, 80);
                 log.post.info(postId, `::Downloading${isGoFile && pass > 1 ? ' (retry)' : ''}::: ${url}`, postNumber);
 
-                if (isCyberdrop && pass === 1 && cyberOrigin && cyberFilePage && /gigachad-cdn\.ru|selti-delivery\.ru/i.test(String(url || '')) && !cyberdropDirectWarmupDone) {
+                if (isCyberdrop && pass === 1 && cyberOrigin && cyberFilePage && /gigachad-cdn\.ru|cuckcapital\.cr/i.test(String(url || '')) && !cyberdropDirectWarmupDone) {
 
                     cyberdropDirectWarmupDone = true;
                                         log.post.info(postId, `::Cyberdrop warm-up -> open tab (${CYBERDROP_WARMUP_MS}ms) then continue::: ${cyberFilePage}`, postNumber);
@@ -6514,7 +6517,7 @@ if (tmp.length) {
                         if (isFilester) {
                             try {
                                 let slug0 = '';
-                                const m = /https?:\/\/(?:www\.)?filester\.me\/d\/([^\/?#]+)/i.exec(String((resource && resource.original) || ''));
+                                const m = /https?:\/\/(?:www\.)?filester\.(me|sh|si|gg)\/d\/([^\/?#]+)/i.exec(String((resource && resource.original) || ''));
                                 if (m && m[1]) slug0 = m[1];
                                 if (!slug0) slug0 = String(filesterSlugByUrl.get(String(url)) || '');
                                 const ct0 = String((meta && (meta.contentType || meta.content_type)) || '');
@@ -6616,7 +6619,7 @@ if (tmp.length) {
                                     candidates0.unshift(u0);
 
                                     const cacheLabel = (u) => {
-                                        const m = String(u || '').match(/https?:\/\/cache(\d+)\.filester\.me/i);
+                                        const m = String(u || '').match(/https?:\/\/cache(\d+)\.filester\.(me|sh|si|gg)/i);
                                         return m && m[1] ? `cache${m[1]}` : (String(u || '').includes('filester.me') ? 'filester' : 'url');
                                     };
 
@@ -7064,17 +7067,17 @@ if (isGoFile || isPixeldrain || isFilester) {
                                                 if (!tried0) { tried0 = new Set(); filesterTriedByToken.set(token0, tried0); }
                                                 tried0.add(String(url));
 
-                                                const isOn6 = /https?:\/\/cache6\.filester\.me\//i.test(String(url || ''));
-                                                const isOn1 = /https?:\/\/cache1\.filester\.me\//i.test(String(url || ''));
+                                                const isOn6 = /https?:\/\/cache6\.filester\.(me|sh|si|gg)\//i.test(String(url || ''));
+                                                const isOn1 = /https?:\/\/cache1\.filester\.(me|sh|si|gg)\//i.test(String(url || ''));
 
                                                 // Prefer swapping cache6 <-> cache1 first.
                                                 if (isOn6) {
                                                     for (const c of (candidates0 || [])) {
-                                                        if (/https?:\/\/cache1\.filester\.me\//i.test(c) && !tried0.has(c)) { nextUrl = c; tried0.add(c); break; }
+                                                        if (/https?:\/\/cache1\.filester\.(me|sh|si|gg)\//i.test(c) && !tried0.has(c)) { nextUrl = c; tried0.add(c); break; }
                                                     }
                                                 } else if (isOn1) {
                                                     for (const c of (candidates0 || [])) {
-                                                        if (/https?:\/\/cache6\.filester\.me\//i.test(c) && !tried0.has(c)) { nextUrl = c; tried0.add(c); break; }
+                                                        if (/https?:\/\/cache6\.filester\.(me|sh|si|gg)\//i.test(c) && !tried0.has(c)) { nextUrl = c; tried0.add(c); break; }
                                                     }
                                                 }
 
@@ -7093,8 +7096,8 @@ if (isGoFile || isPixeldrain || isFilester) {
                                                     const fromU = String(url || '');
                                                     const toU = String(nextUrl || '');
                                                     if (toU && toU !== fromU) {
-                                                        const mf = /https?:\/\/(cache\d+)\.filester\.me\//i.exec(fromU);
-                                                        const mt = /https?:\/\/(cache\d+)\.filester\.me\//i.exec(toU);
+                                                        const mf = /https?:\/\/(cache\d+)\.filester\.(me|sh|si|gg)\//i.exec(fromU);
+                                                        const mt = /https?:\/\/(cache\d+)\.filester\.(me|sh|si|gg)\//i.exec(toU);
                                                         if (mf && mt) switchInfo = `; switching ${mf[1]}->${mt[1]}`;
                                                         else if (mf && !mt) switchInfo = `; switching ${mf[1]}->other`;
                                                         else if (!mf && mt) switchInfo = `; switching other->${mt[1]}`;
@@ -7119,7 +7122,7 @@ if (isGoFile || isPixeldrain || isFilester) {
                                         }
                                     }
 
-const isView = /https?:\/\/(?:www\.)?filester\.me\/d\//i.test(String(url || ''));
+const isView = /https?:\/\/(?:www\.)?filester\.(me|sh|si|gg)\/d\//i.test(String(url || ''));
                                     if (!isView) {
                                         log.post.info(postId, `::Filester blocked/tiny response -> switch to DIRECT [1/2]::: ${url}`, postNumber);
                                         startDirectDownload({ size: hintSize || 0 });
@@ -7354,10 +7357,10 @@ const isView = /https?:\/\/(?:www\.)?filester\.me\/d\//i.test(String(url || ''))
                         }
 
                         // Filester: prefer the real filename (from view page / API hints). Only fall back to a safe slug-based name when needed.
-                        if (/(?:^|https?:\/\/)(?:cache\d+\.)?filester\.me\/(?:d|v)\//i.test(String(url || ''))) {
+                        if (/(?:^|https?:\/\/)(?:cache\d+\.)?filester\.(me|sh|si|gg)\/(?:d|v)\//i.test(String(url || ''))) {
                             try {
                                 let slug0 = '';
-                                const m = /https?:\/\/(?:www\.)?filester\.me\/d\/([^\/?#]+)/i.exec(String((resource && resource.original) || ''));
+                                const m = /https?:\/\/(?:www\.)?filester\.(me|sh|si|gg)\/d\/([^\/?#]+)/i.exec(String((resource && resource.original) || ''));
                                 if (m && m[1]) slug0 = m[1];
                                 if (!slug0) slug0 = String(filesterSlugByUrl.get(String(url)) || '');
                                 const ct0 = headerValue(response.responseHeaders || '', 'content-type');
