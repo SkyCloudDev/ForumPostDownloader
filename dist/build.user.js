@@ -4,7 +4,7 @@
 // @namespace https://github.com/courtneydax
 // @author SkyCloudDev
 // @description Downloads images and videos from posts
-// @version 3.19
+// @version 3.20
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.cuckcapital.cr/simpcityIcon192.png
@@ -317,6 +317,11 @@ function filesterBuildCandidates(token) {
 
 // Bunkr filename hints (from /v/ pages)
 const bunkrNameByUrl = new Map();
+
+// Goonbox: embedded medium-res thumbnail per /img/ link, used as a download fallback when the
+// API's original_url 404s (post-migration, some originals are missing but the .md. thumbnail --
+// also hosted on cuckcapital.cr -- still exists).
+const goonboxThumbByUrl = new Map();
 
 
 // Bunkr/Cloudflare: best-effort warm-up to let the browser complete a JS-only CF interstitial ("Just a moment...").
@@ -1071,6 +1076,7 @@ const parsers = {
             try {
                 messageContentClone.querySelectorAll('a[href*="goonbox.cr"] img').forEach((img) => img.remove());
             } catch (e) { /* ignore */ }
+
 
 
             // Decode forum outbound link protection (e.g. /redirect/?to=...&m=b64) for parsing only.
@@ -1982,7 +1988,7 @@ const hosts = [
     ['Coomer:Profiles', [/coomer.st\/[~an@._-]+\/user/]],
     ['Coomer:image', [/(\w+\.)?coomer.st\/(data|thumbnail)/]],
     ['JPGX:image', [/(simp\d+\.)?(cuckcapital\.cr|jpg\d?\.(church|fish|fishing|pet|su|cr))\/(?!(img\/|a\/|album\/))/, /jpe?g\d\.(church|fish|fishing|pet|su|cr)(\/a\/|\/album\/)[~an@-_.]+<no_qs>/]],
-    ['Goonbox:image', [/goonbox\.cr\/img\//]],
+    ['Goonbox:image', [/goonbox\.cr\/img\//, /goonbox\.cr\/a\//]],
     ['kemono:direct link', [/.{2,6}\.kemono.cr\/data\//]],
     ['Postimg:image', [/!!https?:\/\/(www.)?i\.?(postimg|pixxxels).cc\/(.{8})/]], //[/!!https?:\/\/(www.)?postimg.cc\/(.{8})/]],
     ['Ibb:image',
@@ -2244,19 +2250,75 @@ const resolvers = [
         [/goonbox\.cr\/img\//],
         async (url, http) => {
             const id = url.split('/').pop().split('?')[0];
+            const fallback = goonboxThumbByUrl.get(url.replace(/\?.*/, '').replace(/\/$/, '')) || null;
+
             const { source } = await http.get(
                 `https://goonbox.cr/api/images/${id}`,
                 {},
                 { Referer: url, Accept: 'application/json' },
                 'text',
             );
-            if (!source) return null;
-            try {
-                const data = JSON.parse(source);
-                return data?.image?.original_url || null;
-            } catch (e) {
-                return null;
+
+            let originalUrl = null;
+            if (source) {
+                try {
+                    originalUrl = JSON.parse(source)?.image?.original_url || null;
+                } catch (e) {}
             }
+
+            if (!originalUrl) return fallback;
+
+            // Post-migration, some "original_url" targets 404 even though the medium-res thumbnail
+            // on the same cuckcapital.cr host still exists. Verify before trusting it.
+            try {
+                const check = await http.base('HEAD', originalUrl, {}, { Referer: url }, null, 'text');
+                if (!check.status || check.status >= 400) {
+                    return fallback || originalUrl;
+                }
+            } catch (e) {
+                return fallback || originalUrl;
+            }
+
+            return originalUrl;
+        },
+    ],
+    [
+        [/goonbox\.cr\/a\//],
+        async (url, http) => {
+            const albumSlug = url.replace(/\?.*/, '').split('/').filter(Boolean).pop();
+
+            const fetchPage = async page => {
+                const { source } = await http.get(
+                    `https://goonbox.cr/api/albums/${albumSlug}/images?page=${page}`,
+                    {},
+                    { Referer: url, Accept: 'application/json' },
+                    'text',
+                );
+                if (!source) return null;
+                try {
+                    return JSON.parse(source);
+                } catch (e) {
+                    return null;
+                }
+            };
+
+            const first = await fetchPage(1);
+            if (!first || !h.isArray(first.images)) return null;
+
+            const resolved = first.images.map(img => img.original_url).filter(Boolean);
+            const lastPage = first.pagination?.last_page || 1;
+
+            for (let page = 2; page <= lastPage; page++) {
+                const data = await fetchPage(page);
+                if (data && h.isArray(data.images)) {
+                    resolved.push(...data.images.map(img => img.original_url).filter(Boolean));
+                }
+            }
+
+            return {
+                folderName: `goonbox_${albumSlug}`,
+                resolved,
+            };
         },
     ],
     [
@@ -5592,17 +5654,32 @@ try {
             bunkrNameByUrl.set(href0, nm);
             bunkrNameByUrl.set(strip(href0), nm);
         });
+
+        cc.querySelectorAll('a[href*="goonbox.cr/img/"]').forEach(a => {
+            const href0 = strip(normUrl(a.getAttribute('href')));
+            if (!href0) return;
+
+            const img = a.querySelector('img');
+            const thumbUrl = img && (img.getAttribute('data-url') || img.getAttribute('src'));
+            if (!thumbUrl) return;
+
+            goonboxThumbByUrl.set(href0, thumbUrl);
+        });
     }
 } catch (e) {}
 
 log.post.info(postId, '::Url resolution started::', postNumber);
 
+    const totalResourcesToResolve = enabledHosts.reduce((acc, host) => acc + host.resources.length, 0);
+    let resolvingIndex = 0;
+
     for (const host of enabledHosts.filter(host => host.resources.length)) {
         const resources = host.resources;
 
         for (const resource of resources) {
+            resolvingIndex++;
             h.ui.setElProps(statusLabel, { color: '#469cf3', fontWeight: 'bold' });
-            h.ui.setText(statusLabel, `Resolving: ${h.limit(resource, 80)}`);
+            h.ui.setText(statusLabel, `Resolving: ${resolvingIndex} / ${totalResourcesToResolve} 🢒 ${h.limit(resource, 80)}`);
 
             for (const resolver of resolvers) {
                 const patterns = resolver[0];
@@ -7713,9 +7790,15 @@ return;
         log.post.info(postId, '::Skipping download::', postNumber);
     }
 
-    h.hide(statusLabel);
     h.hide(filePB);
     h.hide(totalPB);
+    if (completed < totalResources) {
+        h.ui.setElProps(statusLabel, { color: '#e8a838', fontWeight: 'bold' });
+        h.ui.setText(statusLabel, `${completed} / ${totalResources} downloaded`);
+        h.show(statusLabel);
+    } else {
+        h.hide(statusLabel);
+    }
 
     if (totalDownloadable > 0) {
         let title = sanitizeWinSegment(threadTitle);
