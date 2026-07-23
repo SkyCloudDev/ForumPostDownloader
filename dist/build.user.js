@@ -4,7 +4,7 @@
 // @namespace https://github.com/courtneydax
 // @author SkyCloudDev
 // @description Downloads images and videos from posts
-// @version 3.20
+// @version 3.21
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.cuckcapital.cr/simpcityIcon192.png
@@ -15,6 +15,7 @@
 // @match https://simpcity.hk/threads/*
 // @match https://simpcity.rs/threads/*
 // @match https://simpcity.ax/threads/*
+// @match https://gofile.io/*
 // @require https://unpkg.com/@popperjs/core@2
 // @require https://unpkg.com/tippy.js@6
 // @require https://unpkg.com/file-saver@2.0.4/dist/FileSaver.min.js
@@ -126,6 +127,7 @@
 // @grant GM_getValue
 // @grant GM_log
 // @grant GM_openInTab
+// @grant GM_cookie
 
 // ==/UserScript==
 // --- tab handle helper (Tampermonkey can return either a Tab object or a Promise<Tab>) ---
@@ -278,6 +280,121 @@ const settings = {
 // GoFile filename hints (from API) so we don't rely on URL-encoded path segments
 const gofileNameById = new Map();
 const gofileNameByUrl = new Map();
+
+// GoFile: the site itself authenticates CDN downloads (store*/cache*.gofile.io) via an
+// "accountToken" cookie, set client-side in account.js as:
+//   document.cookie = "accountToken=" + activeAccount.token + ";path=/;domain=gofile.io;SameSite=Lax;Secure;"
+// Our GM_xmlhttpRequest download calls send cookies (anonymous: false), so mirroring that
+// cookie with OUR already-resolved guest token keeps resolution and download on the same
+// account. (The old warm-up-tab-only approach loaded a bare gofile.io tab whose own JS has
+// no knowledge of our token -- it creates and cookies a brand-new, unrelated guest account,
+// which only works by chance.) Cheap local browser API, safe to call before every request.
+//
+// Whatever accountToken cookie already exists (e.g. the user's own logged-in GoFile session)
+// gets overwritten by this. Capture it once per run so it can be restored via
+// gofileRestoreCookie() once no post is still processing (see setProcessing() below).
+let gofileCookieCaptured = false;
+let gofileOriginalCookieValue = null; // null = no cookie existed originally
+
+const gofileCaptureOriginalCookie = () =>
+    new Promise(resolve => {
+        if (gofileCookieCaptured || typeof GM_cookie === 'undefined' || !GM_cookie || typeof GM_cookie.list !== 'function') {
+            resolve();
+            return;
+        }
+        try {
+            GM_cookie.list({ url: 'https://gofile.io/', domain: 'gofile.io', name: 'accountToken' }, (cookies, error) => {
+                if (error) {
+                    console.warn('[GoFile] GM_cookie.list failed while capturing original accountToken cookie:', error);
+                } else {
+                    const existing = Array.isArray(cookies) ? cookies.find(c => c && c.name === 'accountToken') : null;
+                    gofileOriginalCookieValue = existing ? existing.value : null;
+                }
+                gofileCookieCaptured = true;
+                resolve();
+            });
+        } catch (e) {
+            console.warn('[GoFile] GM_cookie.list threw while capturing original accountToken cookie:', e);
+            gofileCookieCaptured = true;
+            resolve();
+        }
+    });
+
+const gofileSyncCookie = token =>
+    new Promise(resolve => {
+        (async () => {
+            try {
+                if (!token || typeof GM_cookie === 'undefined' || !GM_cookie || typeof GM_cookie.set !== 'function') {
+                    resolve(false);
+                    return;
+                }
+                await gofileCaptureOriginalCookie();
+                GM_cookie.set(
+                    {
+                        url: 'https://gofile.io/',
+                        name: 'accountToken',
+                        value: String(token),
+                        domain: 'gofile.io',
+                        path: '/',
+                        secure: true,
+                        sameSite: 'lax',
+                    },
+                    error => {
+                        if (error) console.warn('[GoFile] GM_cookie.set failed for accountToken:', error);
+                        resolve(!error);
+                    },
+                );
+            } catch (e) {
+                console.warn('[GoFile] gofileSyncCookie threw:', e);
+                resolve(false);
+            }
+        })();
+    });
+
+// Restore whatever accountToken cookie existed before we started overwriting it (or remove
+// ours if none existed). Called once no post is still processing -- see setProcessing() below.
+const gofileRestoreCookie = () =>
+    new Promise(resolve => {
+        try {
+            if (!gofileCookieCaptured || typeof GM_cookie === 'undefined' || !GM_cookie) {
+                resolve();
+                return;
+            }
+            const originalValue = gofileOriginalCookieValue;
+            gofileCookieCaptured = false;
+            gofileOriginalCookieValue = null;
+
+            if (originalValue === null) {
+                if (typeof GM_cookie.delete === 'function') {
+                    GM_cookie.delete({ url: 'https://gofile.io/', name: 'accountToken', domain: 'gofile.io', path: '/' }, error => {
+                        if (error) console.warn('[GoFile] Failed to remove guest accountToken cookie during restore:', error);
+                        resolve();
+                    });
+                    return;
+                }
+                resolve();
+                return;
+            }
+
+            GM_cookie.set(
+                {
+                    url: 'https://gofile.io/',
+                    name: 'accountToken',
+                    value: originalValue,
+                    domain: 'gofile.io',
+                    path: '/',
+                    secure: true,
+                    sameSite: 'lax',
+                },
+                error => {
+                    if (error) console.warn('[GoFile] Failed to restore original accountToken cookie:', error);
+                    resolve();
+                },
+            );
+        } catch (e) {
+            resolve();
+        }
+    });
 
 // Cyberdrop filename hints (from API)
 const cyberdropNameBySlug = new Map();
@@ -3067,37 +3184,61 @@ if (page === 1) {
             return await http.base(method, url, {}, headers, data, responseType);
         };
 
-        const getWebsiteToken = async (force = false) => {
+        // GoFile no longer uses the static appdata.wt from config.js for /contents.
+        // The website now derives a per-request X-Website-Token from the account token
+        // via generateWT() in https://gofile.io/dist/js/wt.obf.js, i.e.:
+        //   WT = sha256(navigator.userAgent + "::" + navigator.language + "::" + token + "::<time>::<salt>")
+        // <time> is NOT a static value -- it's Math.floor(Date.now() / 1000 / 14400) (a
+        // 4-hour bucket), recomputed live inside generateWT() itself. <salt> is the one
+        // actual fixed constant, which can still change whenever GoFile updates the file.
+        // We fetch the script live, eval it in a scoped Function (it only reads navigator,
+        // and the function declaration stays local, not leaked to global), and cache the
+        // source for a day -- safe because we call the eval'd generateWT() fresh on every
+        // request, so Date.now() is always evaluated at call time, not baked in when the
+        // source was cached. WT must be computed with the same UA/language the request is
+        // sent with; the language is also echoed back to the server via the X-BL header.
+        let cachedGenerateWT = null;
+
+        const getGenerateWT = async (force = false) => {
+            if (!force && cachedGenerateWT) return cachedGenerateWT;
+
             const now = Date.now();
             const cached = gmGet(WT_KEY, null);
+            let src =
+                !force && cached && cached.src && cached.ts && now - cached.ts < WT_MAX_AGE_MS
+                    ? cached.src
+                    : null;
 
-            if (!force && cached && cached.value && cached.ts && now - cached.ts < WT_MAX_AGE_MS) {
-                return cached.value;
+            if (!src) {
+                const { source } = await gmReq('GET', 'https://gofile.io/dist/js/wt.obf.js', null, {}, 'text');
+                src = source || '';
+                if (!src || !/generateWT/.test(src)) {
+                    throw new Error('Could not fetch GoFile wt.obf.js (generateWT).');
+                }
+                gmSet(WT_KEY, { src, ts: now });
             }
 
-            const candidates = ['https://gofile.io/dist/js/config.js', 'https://gofile.io/dist/js/alljs.js'];
-
-            for (const u of candidates) {
-                try {
-                    const { source } = await gmReq('GET', u, null, {}, 'text');
-                    const txt = source || '';
-
-                    const m =
-                        txt.match(/\bwt\s*=\s*"([^"]+)"/) ||
-                        txt.match(/fetchData\.wt\s*=\s*"([^"]+)"/) ||
-                        txt.match(/"wt"\s*:\s*"([^"]+)"/);
-
-                    if (m && m[1]) {
-                        gmSet(WT_KEY, { value: m[1], ts: now });
-                        return m[1];
-                    }
-                } catch (e) {}
+            try {
+                const factory = new Function(
+                    'navigator',
+                    `${src}\nreturn (typeof generateWT === 'function') ? generateWT : null;`,
+                );
+                const fn = factory(navigator);
+                if (typeof fn !== 'function') throw new Error('no generateWT');
+                cachedGenerateWT = fn;
+                return fn;
+            } catch (e) {
+                throw new Error('Could not evaluate GoFile generateWT().');
             }
-
-            throw new Error('Could not extract GoFile website token (WT).');
         };
 
-        const createAccountToken = async wt => {
+        const computeWebsiteToken = async (token, force = false) => {
+            const gen = await getGenerateWT(force);
+            return gen(token);
+        };
+
+        const createAccountToken = async () => {
+            // Live site creates the guest account with a plain POST (no website-token).
             const { source } = await gmReq(
                 'POST',
                 'https://api.gofile.io/accounts',
@@ -3105,7 +3246,6 @@ if (page === 1) {
                 {
                     accept: 'application/json',
                     'content-type': 'application/json',
-                    'x-website-token': wt,
                 },
                 'text',
             );
@@ -3118,47 +3258,79 @@ if (page === 1) {
 
             const token = json.data.token;
 
+            // Sync/activate the fresh guest token server-side. The website does this via
+            // GET /accounts/website before it will resolve /contents for that token.
+            try {
+                await gmReq(
+                    'GET',
+                    'https://api.gofile.io/accounts/website',
+                    null,
+                    { accept: 'application/json', authorization: `Bearer ${token}` },
+                    'text',
+                );
+            } catch (e) {}
+
             try {
                 settings.hosts.goFile.token = token;
             } catch (e) {}
 
             gmSet(AT_KEY, { token, ts: Date.now() });
+            await gofileSyncCookie(token);
             return token;
         };
 
         const getAccountToken = async (force = false) => {
             // If the user provided a personal Bearer token, always use it.
             // (This is optional; leaving it empty keeps the anonymous account-token flow.)
+            let token = null;
             try {
                 const override = settings?.hosts?.goFile?.bearerOverride;
                 if (override && String(override).trim() !== '') {
-                    return String(override).trim();
+                    token = String(override).trim();
                 }
             } catch (e) {}
 
-            const now = Date.now();
-
-            const cached = gmGet(AT_KEY, null);
-            if (!force && cached && cached.token && cached.ts && now - cached.ts < AT_MAX_AGE_MS) {
-                try {
-                    settings.hosts.goFile.token = cached.token;
-                } catch (e) {}
-                return cached.token;
+            if (!token) {
+                const now = Date.now();
+                const cached = gmGet(AT_KEY, null);
+                if (!force && cached && cached.token && cached.ts && now - cached.ts < AT_MAX_AGE_MS) {
+                    token = cached.token;
+                    try {
+                        settings.hosts.goFile.token = token;
+                    } catch (e) {}
+                }
             }
 
-            try {
-                if (!force && settings && settings.hosts && settings.hosts.goFile && settings.hosts.goFile.token) {
-                    return settings.hosts.goFile.token;
-                }
-            } catch (e) {}
+            if (!token) {
+                try {
+                    if (!force && settings && settings.hosts && settings.hosts.goFile && settings.hosts.goFile.token) {
+                        token = settings.hosts.goFile.token;
+                    }
+                } catch (e) {}
+            }
 
-            const wt = await getWebsiteToken(false);
-            return await createAccountToken(wt);
+            if (!token) {
+                // createAccountToken() already syncs the cookie for this token; avoid a double sync below.
+                return await createAccountToken();
+            }
+
+            await gofileSyncCookie(token);
+            return token;
         };
 
-        const apiContentsRaw = async (contentId, passwordHash, wt, token) => {
-            let apiUrl = `https://api.gofile.io/contents/${encodeURIComponent(contentId)}`;
-            if (passwordHash) apiUrl += `?password=${encodeURIComponent(passwordHash)}`;
+        const apiContentsRaw = async (contentId, passwordHash, token) => {
+            const wt = await computeWebsiteToken(token);
+
+            // Match the website's getContent() query shape (pagination + sort) exactly.
+            const params = [
+                'contentFilter=',
+                'page=1',
+                'pageSize=1000',
+                'sortField=createTime',
+                'sortDirection=-1',
+            ];
+            if (passwordHash) params.push(`password=${encodeURIComponent(passwordHash)}`);
+            const apiUrl = `https://api.gofile.io/contents/${encodeURIComponent(contentId)}?${params.join('&')}`;
 
             const { source } = await gmReq(
                 'GET',
@@ -3168,6 +3340,7 @@ if (page === 1) {
                     accept: 'application/json',
                     authorization: `Bearer ${token}`,
                     'x-website-token': wt,
+                    'x-bl': (typeof navigator !== 'undefined' && navigator.language) || '',
                 },
                 'text',
             );
@@ -3176,18 +3349,18 @@ if (page === 1) {
         };
 
         const apiContents = async (contentId, passwordHash) => {
-            let wt = await getWebsiteToken(false);
             let token = await getAccountToken(false);
 
-            let json = await apiContentsRaw(contentId, passwordHash, wt, token);
+            let json = await apiContentsRaw(contentId, passwordHash, token);
             if (json && json.status === 'ok') return json;
 
             const s = String(json?.status || json?.message || '').toLowerCase();
 
             if (s.includes('unauthorized') || s.includes('token') || s.includes('invalid')) {
-                wt = await getWebsiteToken(true);
+                // Refresh both the salts (wt.obf.js may have rotated) and the guest token.
+                await getGenerateWT(true);
                 token = await getAccountToken(true);
-                json = await apiContentsRaw(contentId, passwordHash, wt, token);
+                json = await apiContentsRaw(contentId, passwordHash, token);
                 return json;
             }
 
@@ -6068,6 +6241,12 @@ if (tmp.length) {
                 }
             };
             const gofileWarmupAttempted = new Set();
+            // url -> highest pass number currently authoritative. GM_xmlhttpRequest's abort()
+            // isn't always reliable once a blob response is substantially buffered, so a
+            // "stalled" pass-1 request can still fire onload after we've already moved on to a
+            // warm-up retry -- checked in the blob onload handler to stop that stale pass from
+            // also saving the file (duplicate download alongside the retry's result).
+            const gofileActivePass = new Map();
             const CYBERDROP_WARMUP_MS = 1500;
 
             const BLOB_MAX_BYTES = Math.floor(1.6 * 1024 * 1024 * 1024);
@@ -6434,6 +6613,16 @@ if (tmp.length) {
                 const isBunkr = String((host && host.name) || '').toLowerCase() === 'bunkr' || /bunkr/i.test(String(url || '')) || /bunkr/i.test(String(original || ''));
                 const isFilester = String((host && host.name) || '').toLowerCase() === 'filester' || /(?:^|\.)filester\.(me|sh|si|gg)/i.test(String(url || ''));
 
+                // GoFile: make sure the browser's accountToken cookie matches the token that
+                // resolved this album BEFORE the first request (store links gate on this too,
+                // not just DIRECT) -- see gofileSyncCookie definition for why.
+                if (isGoFile) {
+                    try {
+                        const gfToken = settings?.hosts?.goFile?.token;
+                        if (gfToken) await gofileSyncCookie(gfToken);
+                    } catch (e) {}
+                }
+
                 // Filester: turn short /d/<slug> view URLs into cache /v/<token> stream URLs (no tabs).
                 // Album pages (/f/...) mostly contain only short slugs, which require this token step.
                 if (isFilester) {
@@ -6730,7 +6919,7 @@ if (tmp.length) {
                         }
 
                         log.separator(postId);
-                        log.post.info(postId, `::Completed (direct)::: ${url}`, postNumber);
+                        log.post.info(postId, `::Handed off (direct)::: ${url}`, postNumber);
 
                         if (folder && folder.trim() !== '') {
                             log.post.info(postId, `::Saving as (direct)::: ${basename} ::to:: ${folder}`, postNumber);
@@ -7071,6 +7260,10 @@ if (isGoFile || isPixeldrain || isFilester) {
 
 
                         if (abortReason === 'bunkr_maint' && bunkrMaintenanceHandled) return;
+                        // GoFile: this pass was superseded by a stall-triggered warm-up retry
+                        // (request.abort() above isn't always reliable once a blob response is
+                        // substantially buffered) -- a newer pass now owns saving this file.
+                        if (isGoFile && (gofileActivePass.get(url) || pass) > pass) return;
                         // GoFile: detect soft-block / HTML gate
                         if (isGoFile) {
                             const mCt = /content-type:\s*([^\r\n]+)/i.exec(response.responseHeaders || '');
@@ -7743,14 +7936,19 @@ return;
                             return;
                         }
 
-                        // GoFile: make stalls visible and allow one warm-up retry.
-                        if (isGoFile) {
-                            log.post.error(postId, `::Stalled/Failed::: ${url}`, postNumber);
-                        }
+                        // Make stalls visible instead of silently counting a failed download as
+                        // complete (previously only GoFile logged this; every other host -- Bunkr
+                        // included -- fell through to completed++ with no indication of failure).
+                        log.post.error(postId, `::Stalled/Failed::: ${url}`, postNumber);
 
                         if (isGoFile && pass === 1 && !gofileWarmupAttempted.has(url)) {
                             gofileWarmupAttempted.add(url);
                             log.post.info(postId, `::GoFile stalled -> warm-up tab (${GOFILE_WARMUP_MS}ms) then retry [1/2]::: ${url}`, postNumber);
+                            // request.abort() above isn't always reliable once a blob response is
+                            // substantially buffered -- mark pass 2 as authoritative so a zombie
+                            // pass-1 onload (see the isGoFile guard at the top of onload) can't
+                            // also save the file.
+                            gofileActivePass.set(url, 2);
                             gofileWarmupOpenTab(url);
                             setTimeout(() => startDownload(resource, 2), GOFILE_WARMUP_MS);
                             return;
@@ -7909,6 +8107,10 @@ if (needZipBlob) {
     }
 
     setProcessing(false, postId);
+
+    if (!processing.some(p => p.processing)) {
+        gofileRestoreCookie();
+    }
 
     if (totalDownloadable > 0) {
         // For logging in console since post logs are already written.
@@ -8095,6 +8297,13 @@ const selectedPosts = [];
 
 (function () {
     try { if (window.__XFPD_ABORT_MAIN) return; } catch (e) {}
+
+    // @match now covers gofile.io (required by GM_cookie for the accountToken sync -- see
+    // gofileSyncCookie), which also makes Tampermonkey inject/run this whole script on actual
+    // gofile.io page loads (e.g. the warm-up tab). None of the forum-post logic below applies
+    // there, so bail out immediately rather than doing pointless work (redgifs token fetch,
+    // style injection) on GoFile's own pages.
+    try { if (/(^|\.)gofile\.io$/i.test(location.hostname)) return; } catch (e) {}
 
     window.addEventListener('beforeunload', e => {
         if (processing.find(p => p.processing)) {
