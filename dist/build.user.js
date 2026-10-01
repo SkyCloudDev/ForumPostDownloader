@@ -4,7 +4,7 @@
 // @namespace https://github.com/SkyCloudDev
 // @author SkyCloudDev
 // @description Downloads images and videos from posts
-// @version 3.22
+// @version 3.23
 // @updateURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @downloadURL https://github.com/SkyCloudDev/ForumPostDownloader/raw/main/dist/build.user.js
 // @icon https://simp4.cuckcapital.cr/simpcityIcon192.png
@@ -122,7 +122,7 @@
 // @connect filester.sh
 // @connect filester.si
 // @connect filester.gg
-// @run-at document-start
+// @run-at document-body
 // @grant GM_xmlhttpRequest
 // @grant GM_download
 // @grant GM_setValue
@@ -9082,7 +9082,8 @@ const selectedPosts = [];
         }
     });
 
-    document.addEventListener('DOMContentLoaded', async () => {
+    // Injection can land after DOMContentLoaded has already fired; run immediately in that case.
+    (document.readyState === 'loading' ? (fn => document.addEventListener('DOMContentLoaded', fn)) : (fn => fn()))(async () => {
 
 
         try {
