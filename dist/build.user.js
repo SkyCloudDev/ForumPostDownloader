@@ -130,7 +130,7 @@
 // @connect filester.sh
 // @connect filester.si
 // @connect filester.gg
-// @run-at document-start
+// @run-at document-body
 // @grant GM_xmlhttpRequest
 // @grant GM_download
 // @grant GM_setValue
@@ -9090,7 +9090,8 @@ const selectedPosts = [];
         }
     });
 
-    document.addEventListener('DOMContentLoaded', async () => {
+    // Injection can land after DOMContentLoaded has already fired; run immediately in that case.
+    (document.readyState === 'loading' ? (fn => document.addEventListener('DOMContentLoaded', fn)) : (fn => fn()))(async () => {
 
 
         try {
